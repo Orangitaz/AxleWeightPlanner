@@ -1,0 +1,1268 @@
+<title>Axle Weight Planner</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..700&family=Hanken+Grotesk:wght@400..700&display=swap">
+<style>
+/* Plan: cool slate paper, ultramarine accent used for actions only, status colors reserved for load state.
+   Layout: slim top bar with context chips and section jumps, sticky status strip, then one long page: side view with the rig under it, setup cards, results. */
+:root {
+  --bg: #F0F2F6;
+  --surface: #FFFFFF;
+  --surface-2: #F5F7FA;
+  --sunken: #E8ECF2;
+  --ink: #101A26;
+  --ink-2: #566376;
+  --line: #E1E5EC;
+  --accent: #2D4BD6;
+  --accent-ink: #FFFFFF;
+  --accent-soft: #E3E9FD;
+  --ok: #12794A;
+  --ok-bg: #DFF3E8;
+  --warn: #8F5B08;
+  --warn-bg: #FCEFD1;
+  --bad: #C2301F;
+  --bad-bg: #FCE5E1;
+  --shape: #DDE2EA;
+  --shape-line: #6B778A;
+  --road: #98A3B3;
+  --tire: #1E2733;
+  --rim: #F5F7FA;
+  --shadow: 0 1px 2px rgba(16, 26, 38, .05), 0 8px 24px -12px rgba(16, 26, 38, .16);
+  --f-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --f-body: "Hanken Grotesk", "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0B1118; --surface: #121B25; --surface-2: #17222E; --sunken: #0E161F; --ink: #E8EDF3; --ink-2: #99A7B8; --line: #223040;
+    --accent: #8EA4FF; --accent-ink: #0B1118; --accent-soft: #1C2958;
+    --ok: #4FD08A; --ok-bg: #11301F; --warn: #E8B64D; --warn-bg: #3A2D0E; --bad: #FF8A7C; --bad-bg: #3C1814;
+    --shape: #213043; --shape-line: #8091A5; --road: #566474; --tire: #05090E; --rim: #17222E; --shadow: 0 0 0 rgba(0, 0, 0, 0);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0B1118; --surface: #121B25; --surface-2: #17222E; --sunken: #0E161F; --ink: #E8EDF3; --ink-2: #99A7B8; --line: #223040;
+  --accent: #8EA4FF; --accent-ink: #0B1118; --accent-soft: #1C2958;
+  --ok: #4FD08A; --ok-bg: #11301F; --warn: #E8B64D; --warn-bg: #3A2D0E; --bad: #FF8A7C; --bad-bg: #3C1814;
+  --shape: #213043; --shape-line: #8091A5; --road: #566474; --tire: #05090E; --rim: #17222E; --shadow: 0 0 0 rgba(0, 0, 0, 0);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 14.5px/1.5 var(--f-body); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 0 56px; font-variant-numeric: tabular-nums; }
+h1, h2, h3 { font-family: var(--f-display); font-weight: 600; margin: 0; letter-spacing: -.005em; text-wrap: balance; }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.wrap { max-width: 1360px; margin-inline: auto; }
+
+/* top bar */
+.top { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding-block: 16px 10px; }
+.brand { display: flex; align-items: center; gap: 10px; font: 700 21px var(--f-display); letter-spacing: -.015em; }
+.brand svg { width: 28px; height: 28px; flex: none; }
+.ctx { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.cx { font-size: 12.5px; font-weight: 600; background: var(--surface); border: 1px solid var(--line); border-radius: 99px; padding: 3px 11px; color: var(--ink-2); white-space: nowrap; }
+.cx b { color: var(--ink); font-weight: 600; }
+.grow { flex: 1; }
+.acts { display: flex; gap: 6px; }
+.nav { display: flex; gap: 2px; flex: 1 1 100%; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+.nav::-webkit-scrollbar { display: none; }
+.nav button { border: 0; background: transparent; color: var(--ink-2); font-weight: 600; font-size: 13px; padding: 6px 11px; border-radius: 8px; cursor: pointer; white-space: nowrap; }
+.nav button:hover { background: var(--surface); color: var(--ink); }
+.iconbtn { border: 1px solid var(--line); background: var(--surface); width: 36px; height: 36px; border-radius: 10px; cursor: pointer; display: grid; place-items: center; color: var(--ink); }
+.iconbtn:hover { border-color: var(--accent); }
+.iconbtn svg { width: 18px; height: 18px; }
+
+/* status strip */
+.strip { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: var(--bg); padding-block: 6px; display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; scroll-snap-type: x proximity; }
+.strip::-webkit-scrollbar { display: none; }
+.tile { flex: 1 0 128px; scroll-snap-align: start; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 7px 12px 8px; min-width: 0; box-shadow: var(--shadow); --st: var(--ok); --st-bg: var(--ok-bg); }
+.tile.near { --st: var(--warn); --st-bg: var(--warn-bg); }
+.tile.over { --st: var(--bad); --st-bg: var(--bad-bg); }
+.tile .k { font-size: 12px; color: var(--ink-2); font-weight: 600; }
+.tile .v { font: 600 25px/1.1 var(--f-display); letter-spacing: -.01em; }
+.tile .v small { font: 500 11.5px var(--f-body); color: var(--ink-2); margin-left: 3px; letter-spacing: 0; }
+.bar { height: 3px; background: var(--sunken); border-radius: 3px; margin: 4px 0 5px; overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--st); border-radius: 3px; }
+.tile .s { font-size: 12px; font-weight: 600; color: var(--st); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 6px; }
+.tile .s::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--st); flex: none; }
+
+.layout { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); align-items: start; margin-top: 8px; }
+#form { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 16px; align-items: start; min-width: 0; }
+.col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 18px; min-width: 0; box-shadow: var(--shadow); scroll-margin-top: 92px; }
+.card > h2 { font-size: 19px; display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.card > h2 .tag { font: 600 11.5px var(--f-body); letter-spacing: 0; color: var(--ink-2); background: var(--surface-2); border-radius: 99px; padding: 2px 9px; }
+.card > h2 .grow { flex: 1; }
+.sub { color: var(--ink-2); font-size: 13px; margin: -6px 0 12px; max-width: 70ch; }
+
+/* form */
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 12px; }
+.f { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.f > span:first-child { font-size: 12.5px; color: var(--ink-2); font-weight: 600; }
+.f.wide { grid-column: 1 / -1; }
+.in { display: flex; align-items: center; background: var(--surface-2); border: 1px solid var(--line); border-radius: 9px; min-width: 0; min-height: 38px; container-type: inline-size; }
+.in:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.in.need { border-style: dashed; border-color: var(--accent); }
+.in.bad { border-color: var(--bad); box-shadow: 0 0 0 3px var(--bad-bg); }
+.in input, .in select { flex: 1; min-width: 0; border: 0; background: transparent; padding: 8px 10px; font-size: 14.5px; font-weight: 500; width: 100%; outline: 0; }
+.in input[type=number] { -moz-appearance: textfield; appearance: textfield; }
+.in input::-webkit-inner-spin-button, .in input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.in input::placeholder { color: var(--ink-2); opacity: .55; font-weight: 400; }
+.in em { font-style: normal; font-size: 12px; color: var(--ink-2); padding-right: 10px; white-space: nowrap; }
+.nud { border: 0; background: transparent; color: var(--ink-2); width: 26px; align-self: stretch; cursor: pointer; font-size: 17px; line-height: 1; border-radius: 7px; user-select: none; touch-action: manipulation; }
+.nud:hover { background: var(--sunken); color: var(--ink); }
+@container (max-width: 150px) { .nud { display: none; } }
+.f small { font-size: 12px; color: var(--ink-2); }
+.chk { display: flex; align-items: center; gap: 9px; font-weight: 600; cursor: pointer; margin-top: 12px; }
+.chk input { width: 17px; height: 17px; accent-color: var(--accent); }
+.rule { border: 0; border-top: 1px solid var(--line); margin: 14px 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { border: 1px solid var(--line); background: var(--surface); border-radius: 99px; padding: 5px 12px; cursor: pointer; font-size: 13px; font-weight: 600; }
+.chip:hover { border-color: var(--accent); }
+.chip.on { background: var(--accent-soft); border-color: var(--accent); color: var(--ink); }
+.btn { border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink); border-radius: 9px; padding: 7px 14px; font-weight: 650; cursor: pointer; }
+.btn:hover { filter: brightness(1.08); }
+.btn.ghost { background: transparent; color: var(--accent); border-color: var(--line); }
+.btn.ghost:hover { border-color: var(--accent); filter: none; }
+.btn.sm { padding: 4px 11px; font-size: 13px; }
+.alt { font-size: 13px; background: var(--surface-2); border-radius: 10px; padding: 9px 12px; margin-top: 10px; }
+.alt b { font-weight: 650; }
+.alt .x { color: var(--bad); font-weight: 650; }
+.alt .g { color: var(--ok); font-weight: 650; }
+.subform { margin-top: 10px; padding: 12px; background: var(--surface-2); border-radius: 10px; }
+.cargo { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; gap: 8px; align-items: end; margin-bottom: 14px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+.cargo > .f:first-child { grid-column: 1 / -1; }
+.cargo .f > span:first-child { font-size: 12px; }
+.cargo .rm, .xbtn { border: 1px solid var(--line); background: var(--surface); border-radius: 9px; height: 38px; width: 38px; cursor: pointer; color: var(--bad); font-size: 17px; line-height: 1; }
+.cargo .rm:hover, .xbtn:hover { border-color: var(--bad); }
+
+/* side view rig */
+.rig { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-top: 14px; }
+.rg { border-radius: 14px; padding: 14px 14px 16px; background: var(--surface-2); min-width: 0; }
+.rg h3 { font-size: 16.5px; display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.rg h3 .tag { font: 600 11.5px var(--f-body); color: var(--ink-2); background: var(--surface); border-radius: 99px; padding: 2px 9px; }
+.rg .in { background: var(--surface); }
+.tl { font-size: 12.5px; color: var(--ink-2); font-weight: 600; margin: 12px 0 5px; }
+.gaps { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; }
+.gaps .f > span:first-child { font-size: 11.5px; }
+.tgs { display: flex; flex-wrap: wrap; gap: 6px; }
+.tg { display: flex; flex-direction: column; align-items: center; min-width: 48px; padding: 5px 9px; border-radius: 10px; border: 1px solid var(--line); cursor: pointer; font: 650 14.5px var(--f-body); background: var(--surface); }
+.tg small { font: 650 10.5px var(--f-body); letter-spacing: .05em; text-transform: uppercase; }
+.tg.on { border-color: var(--ok); color: var(--ok); background: var(--ok-bg); }
+.tg.off { border-style: dashed; color: var(--ink-2); }
+svg .wheel { cursor: pointer; }
+svg .wheel:focus-visible { outline: 2px solid var(--accent); }
+#alt { margin-top: 12px; }
+#rig { scroll-margin-top: 92px; }
+
+/* diagram */
+.scroll { overflow-x: auto; }
+svg.dia { display: block; width: 100%; min-width: 860px; height: auto; font-family: var(--f-body); }
+svg .shape { fill: var(--shape); stroke: var(--shape-line); stroke-width: 1.2; stroke-linejoin: round; }
+svg .glass { fill: var(--surface); stroke: var(--shape-line); stroke-width: 1; opacity: .9; }
+svg .trim { fill: none; stroke: var(--shape-line); stroke-width: 1; opacity: .6; }
+svg .lamp { fill: var(--surface); stroke: var(--shape-line); stroke-width: 1; }
+svg .chrome { fill: var(--shape-line); opacity: .55; }
+svg .ground { stroke: var(--road); stroke-width: 2; stroke-linecap: round; }
+svg .tx { fill: var(--ink); font-size: 12.5px; }
+svg .tx2 { fill: var(--ink-2); font-size: 11.5px; }
+svg .num { font-size: 12px; font-weight: 600; }
+svg .aw { fill: var(--ink); font-size: 11.5px; font-weight: 650; paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+svg .cargo-r { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.5; }
+svg .tire { fill: var(--tire); }
+svg .rim { fill: var(--rim); stroke-width: 3; }
+svg .rim.ok { stroke: var(--ok); }
+svg .rim.near { stroke: var(--warn); }
+svg .rim.over { stroke: var(--bad); }
+svg .hub { fill: var(--shape-line); }
+svg .ok { color: var(--ok); }
+svg .near { color: var(--warn); }
+svg .over { color: var(--bad); }
+.inview [data-act="expsetups"] { display: none; }
+dl.pdl { display: grid; grid-template-columns: minmax(120px, auto) 1fr; gap: 6px 16px; margin: 10px 0 14px; font-size: 13px; }
+dl.pdl dt { color: var(--ink-2); } dl.pdl dd { margin: 0; font-variant-numeric: tabular-nums; }
+svg .dim { stroke: var(--ink-2); stroke-width: 1.2; opacity: .6; }
+svg .dimdot { fill: var(--ink-2); }
+svg .brk { fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+svg .brk.ok { stroke: var(--ok); } svg .brk.near { stroke: var(--warn); } svg .brk.over { stroke: var(--bad); }
+svg .lbl.ok { fill: var(--ok); }
+svg .lbl.near { fill: var(--warn); }
+svg .lbl.over { fill: var(--bad); }
+svg .lead { stroke: var(--ink-2); stroke-width: 1; stroke-dasharray: 3 3; }
+
+/* groups */
+.groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+.gc { border-radius: 14px; padding: 12px 14px; background: var(--surface-2); --st: var(--ok); --st-bg: var(--ok-bg); min-width: 0; }
+.gc.near { --st: var(--warn); --st-bg: var(--warn-bg); }
+.gc.over { --st: var(--bad); --st-bg: var(--bad-bg); }
+.gc h3 { font-size: 16.5px; display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+.pill { font: 650 12px var(--f-body); background: var(--st-bg); color: var(--st); border-radius: 99px; padding: 2px 10px; white-space: nowrap; }
+.pill.rt { background: var(--bad-bg); color: var(--bad); }
+.gc .big { font: 600 32px/1.1 var(--f-display); letter-spacing: -.015em; margin-top: 6px; }
+.gc .big small { font: 500 12.5px var(--f-body); color: var(--ink-2); letter-spacing: 0; }
+.gc dl { margin: 8px 0 0; display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; font-size: 13px; }
+.gc dt { color: var(--ink-2); }
+.gc dd { margin: 0; text-align: right; font-weight: 600; }
+
+/* table */
+.tbl { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.tbl th { text-align: left; font-size: 12px; font-weight: 650; color: var(--ink-2); padding: 7px 10px; border-bottom: 1px solid var(--line); }
+.tbl td { padding: 7px 10px; border-bottom: 1px solid var(--line); }
+.tbl td.n, .tbl th.n { text-align: right; }
+.tbl tr.up td { color: var(--ink-2); }
+.tbl tr.grp td { background: var(--surface-2); font-weight: 650; border-bottom: 0; }
+
+/* slide window */
+.sg { border-collapse: separate; border-spacing: 3px; font-size: 11px; }
+.sg th { font: 600 11.5px var(--f-body); color: var(--ink-2); padding: 2px 4px; white-space: nowrap; }
+.sg td { padding: 0; }
+.cell { width: 36px; height: 28px; border: 1px solid transparent; border-radius: 7px; cursor: pointer; font-weight: 700; font-size: 12px; background: var(--bad-bg); color: var(--bad); }
+.cell.ok { background: var(--ok-bg); color: var(--ok); }
+.cell.cur { outline: 2px solid var(--ink); outline-offset: 1px; }
+.cell.best { border-color: var(--ok); }
+.note { font-size: 13px; color: var(--ink-2); margin: 10px 0 0; }
+.warns { display: flex; flex-direction: column; gap: 8px; }
+.w { border-radius: 12px; padding: 10px 14px; font-size: 13.5px; background: var(--warn-bg); color: var(--ink); }
+.w.bad { background: var(--bad-bg); }
+.w.info { background: var(--accent-soft); }
+.empty { border: 1.5px dashed var(--line); background: var(--surface); border-radius: 16px; padding: 20px 22px; }
+.empty h3 { font-size: 20px; }
+.empty p { margin: 6px 0 12px; color: var(--ink-2); }
+.needs { display: grid; gap: 8px; margin-bottom: 14px; }
+.needs div { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.needs b { min-width: 64px; }
+.needs span { color: var(--ink-2); }
+.foot { color: var(--ink-2); font-size: 12.5px; margin-top: 20px; max-width: 90ch; }
+
+/* setups, links, fit */
+#form a:not(.btn) { color: var(--accent); font-weight: 600; }
+#form details.card { grid-column: 1 / -1; padding: 12px 18px; }
+#form details summary { cursor: pointer; font: 600 16.5px var(--f-display); }
+#form details .chips { margin-top: 10px; }
+.saved { display: flex; gap: 6px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.saved .info { flex: 1; min-width: 0; }
+.saved .edit { flex: 1 1 100%; display: grid; gap: 8px; }
+.saved .row { display: flex; gap: 6px; flex-wrap: wrap; }
+.ft { font-style: normal; color: var(--ink-2); font-weight: 500; font-size: 11.5px; }
+.fit { display: flex; flex-wrap: wrap; gap: 2px; margin: 10px 0; }
+.fit button { width: 9px; height: 28px; border: 0; padding: 0; border-radius: 3px; cursor: pointer; background: var(--bad-bg); }
+.fit button.ok { background: var(--ok); opacity: .75; }
+.fit button.cur { outline: 2px solid var(--ink); outline-offset: 1px; opacity: 1; }
+.toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 11px; font-weight: 650; font-size: 13.5px; z-index: 60; max-width: min(92vw, 420px); box-shadow: 0 10px 30px -10px rgba(0, 0, 0, .5); }
+.toast.err { background: var(--bad); color: #fff; }
+.printonly { display: none; }
+@media (prefers-reduced-motion: no-preference) { .bar i { transition: width .25s; } .toast { animation: tin .18s ease-out; } @keyframes tin { from { opacity: 0; transform: translate(-50%, 8px); } } }
+@media (pointer: coarse) { .in input, .in select { font-size: 16px; padding: 10px; } .nud { width: 34px; } .tg { min-width: 52px; padding: 7px 10px; } }
+@media (max-width: 640px) { .card { padding: 14px; border-radius: 14px; } .brand { font-size: 19px; } .grow { display: none; } .acts { margin-left: auto; } }
+@media print {
+  :root, :root:root:root { --bg: #fff; --surface: #fff; --surface-2: #F3F5F8; --sunken: #E8ECF2; --ink: #101A26; --ink-2: #566376; --line: #D5DAE1; --accent: #2D4BD6; --accent-soft: #E3E9FD; --ok: #12794A; --ok-bg: #DFF3E8; --warn: #8F5B08; --warn-bg: #FCEFD1; --bad: #C2301F; --bad-bg: #FCE5E1; --shape: #DDE2EA; --shape-line: #6B778A; --road: #98A3B3; --tire: #1E2733; --rim: #F5F7FA; --shadow: none; color-scheme: light; }
+  body { padding: 0; background: #fff; font-size: 12px; }
+  .strip, #form, #rig, .btn, .top, .toast, #slideCard, .foot, .empty { display: none !important; }
+  .printonly { display: block; }
+  .card { break-inside: avoid; border-color: #bbb; box-shadow: none; }
+  .scroll { overflow: visible; }
+  svg.dia { min-width: 0; }
+  .ph h2 { font-size: 22px; margin: 0 0 4px; }
+  .ph dl { display: grid; grid-template-columns: auto 1fr; gap: 1px 12px; margin: 6px 0 10px; font-size: 12px; }
+  .ph dt { color: var(--ink-2); } .ph dd { margin: 0; }
+}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand"><svg viewBox="0 0 32 32" aria-hidden="true"><rect x="1" y="5" width="30" height="22" rx="7" fill="var(--accent)"/><path d="M6 20h4m3 0h6m3 0h4" stroke="var(--accent-ink)" stroke-width="2.4" stroke-linecap="round"/><circle cx="9" cy="23.5" r="2.4" fill="var(--accent-ink)"/><circle cx="23" cy="23.5" r="2.4" fill="var(--accent-ink)"/><path d="M8 13h16" stroke="var(--accent-ink)" stroke-width="2.4" stroke-linecap="round" opacity=".55"/></svg>Axle Weight Planner</div>
+    <div class="ctx" id="ctx"></div>
+    <div class="grow"></div>
+    <div class="acts">
+      <button class="btn ghost sm" data-act="copy" id="copyBtn">Copy summary</button>
+      <button class="btn ghost sm" data-act="print" id="printBtn">Print sheet</button>
+      <button class="iconbtn" id="themeBtn" type="button" data-act="theme" aria-label="Switch between light and dark" title="Light or dark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v17a8.5 8.5 0 0 0 0-17z" fill="currentColor"/></svg></button>
+    </div>
+    <nav class="nav" aria-label="Jump to a section">
+      <button type="button" data-nav="#diagramCard">Side view</button><button type="button" data-nav="#rig">Rig</button><button type="button" data-nav="#setupsCard">Saved setups</button><button type="button" data-nav="#loadCard">Load</button><button type="button" data-nav="#limitsCard">Limits</button><button type="button" data-nav="#groupsCard">Results</button>
+    </nav>
+  </header>
+  <div id="printHead" class="printonly ph"></div>
+  <div id="strip" class="strip" aria-live="polite"></div>
+  <div class="layout">
+    <div id="results" class="col"></div>
+  </div>
+  <p class="foot">Planning aid only. Weights are static and assume axles in a group share load equally. Enter scaled tare weights where you have them; the preset tares are typical values. Check actual limits, permits and kingpin rules with the states you run through, and confirm loaded weights on a scale.</p>
+</div>
+
+<script>
+/*PHYSICS_START*/
+// Distances: trailer and jeep lengths in feet from that unit's own kingpin (positive toward the rear).
+// Tractor distances in inches; global positions are feet from the steer axle (positive toward the rear).
+function groupAxles(n, gaps, center, up) {
+  // Axles placed from the spacing between each pair (inches). `center` is the midpoint between the first and last axle.
+  const xs = [0];
+  for (let i = 0; i < n - 1; i++) xs.push(xs[i] + (+gaps[i] || 0) / 12);
+  const mid = xs[n - 1] / 2, ax = [];
+  for (let i = 0; i < n; i++) ax.push({ x: center + xs[i] - mid, kind: 'main', idx: i, down: !(up && up[i]) });
+  if (!ax.some(a => a.down)) ax[0].down = true;
+  return ax;
+}
+function unitAxles(u) {
+  const ax = groupAxles(u.n, u.gaps, u.kpToAxle, u.up);
+  const b = u.boost;
+  if (b && b.has && b.installed && b.n > 0) {
+    let x = Math.max(...ax.map(a => a.x));
+    for (let i = 0; i < b.n; i++) { x += (+b.gaps[i] || 0) / 12; ax.push({ x, kind: 'boost', idx: i, down: !(b.up && b.up[i]) }); }
+  }
+  return ax.sort((a, b) => a.x - b.x);
+}
+const FUEL_LB = 7.1;
+function solveUnit(u, inLoad) {
+  const ax = unitAxles(u), down = ax.filter(a => a.down);
+  const xc = down.reduce((s, a) => s + a.x, 0) / down.length;
+  const loads = [{ w: +u.tare || 0, x: +u.tareCg || 0 }];
+  (u.cargo || []).forEach(c => loads.push({ w: +c.w || 0, x: +c.x || 0 }));
+  const bo = ax.filter(a => a.kind === 'boost');
+  if (bo.length) loads.push({ w: +u.boost.tare || 0, x: bo.reduce((s, a) => s + a.x, 0) / bo.length });
+  if (inLoad) loads.push({ w: inLoad, x: +u.coupling || 0 });
+  const total = loads.reduce((s, l) => s + l.w, 0);
+  const K = loads.reduce((s, l) => s + l.w * (xc - l.x) / xc, 0);
+  const R = total - K;
+  ax.forEach(a => a.w = a.down ? R / down.length : 0);
+  return { axles: ax, xc, K, R, total };
+}
+function solveTractor(t, Kfw) {
+  // axle 1 is the steer axle; gaps[0] is steer to the first rear axle, then each rear axle to the next
+  const rx = []; let acc = 0;
+  for (let i = 0; i < t.driveN; i++) { acc += (+t.gaps[i] || 0) / 12; rx.push(acc); }
+  const W = (rx[0] + rx[rx.length - 1]) / 2;
+  const ax = [{ x: 0, kind: 'steer', idx: 0, down: true }].concat(rx.map((x, i) => ({ x, kind: 'drive', idx: i, down: !(t.up && t.up[i]) })));
+  if (!ax.some(a => a.kind === 'drive' && a.down)) ax[1].down = true;
+  ax.sort((a, b) => a.x - b.x);
+  const rear = ax.filter(a => a.kind !== 'steer' && a.down);
+  const xc = rear.reduce((s, a) => s + a.x, 0) / rear.length;
+  const xfw = W - t.fw / 12;
+  const loads = [{ w: +t.steerCurb || 0, x: 0 }, { w: +t.driveCurb || 0, x: W }, { w: Kfw, x: xfw }];
+  if (+t.fuelGal > 0) loads.push({ w: +t.fuelGal * FUEL_LB, x: W - (+t.fuelX || 0) });
+  const total = loads.reduce((s, l) => s + l.w, 0);
+  const S = loads.reduce((s, l) => s + l.w * (xc - l.x) / xc, 0);
+  const R = total - S;
+  ax.forEach(a => a.w = a.kind === 'steer' ? S : (a.down ? R / rear.length : 0));
+  return { axles: ax, S, R, xc, xfw, W };
+}
+function allowedSpan(L, N, lim) {
+  if (lim.mode === 'custom') return lim.axle * N;
+  if (N === 1) return 20000;
+  let a = 500 * Math.round(L * N / (N - 1) + 12 * N + 36);
+  if (N === 2 && L <= 8.0001) a = Math.min(a, 34000);
+  return Math.min(a, 80000);
+}
+function statusOf(w, limit) { return w > limit + 0.5 ? 'over' : (limit - w <= 500 ? 'near' : 'ok'); }
+// The page takes every distance in inches; the solver works in feet internally.
+const toFt = v => (v === null || v === undefined || v === '') ? v : v / 12;
+const toIn = v => (v === null || v === undefined || v === '') ? v : v * 12;
+function convState(s, f) {
+  return Object.assign({}, s, {
+    tractor: Object.assign({}, s.tractor, { overall: f(s.tractor.overall), fuelX: f(s.tractor.fuelX) }),
+    jeep: Object.assign({}, s.jeep, { kpToAxle: f(s.jeep.kpToAxle), coupling: f(s.jeep.coupling), overall: f(s.jeep.overall) }),
+    trailer: Object.assign({}, s.trailer, { kpToAxle: f(s.trailer.kpToAxle), overall: f(s.trailer.overall), kpFront: f(s.trailer.kpFront), upperLen: f(s.trailer.upperLen), lowDeck: f(s.trailer.lowDeck), lowGoose: f(s.trailer.lowGoose), lowRear: f(s.trailer.lowRear), lowerLen: f(s.trailer.lowerLen), slide: Object.assign({}, s.trailer.slide, { min: f(s.trailer.slide.min), max: f(s.trailer.slide.max) }), cargo: s.trailer.cargo.map(c => Object.assign({}, c, { x: f(c.x), len: f(c.len) })) }),
+    limits: Object.assign({}, s.limits, { kpra: f(s.limits.kpra) })
+  });
+}
+const ftState = s => convState(s, toFt), inState = s => convState(s, toIn);
+function snapGeom(s) {
+  return JSON.parse(JSON.stringify({ tractor: { driveN: s.tractor.driveN, gaps: s.tractor.gaps, fw: s.tractor.fw }, jeep: { on: s.jeep.on, kpToAxle: s.jeep.kpToAxle, coupling: s.jeep.coupling }, trailer: { kpToAxle: s.trailer.kpToAxle } }));
+}
+// Empty weights are entered as scaled with tractor and trailer coupled (the kingpin load is already inside the
+// steer and drive weights). To move the 5th wheel or slide axles we need each unit's own empty weight and CG, so
+// they are backed out here at the positions the weights were scaled at (s.ref), using the kingpin share of each unit.
+function resolve(s) {
+  const g = snapGeom(s); // empty weights stay as entered; only the load changes with positions
+  const f = Math.min(0.85, Math.max(0, (+s.trailer.kpPct || 0) / 100)), R0 = +s.trailer.tareR || 0;
+  const tT = R0 / (1 - f), K0t = tT * f;
+  const trailer = Object.assign({}, s.trailer, { tare: tT, tareCg: g.trailer.kpToAxle * (1 - f) });
+  let jeep = s.jeep, Kfw0 = K0t;
+  if (g.jeep.on) {
+    const Lj = g.jeep.kpToAxle, c = g.jeep.coupling, fj = Math.min(0.85, Math.max(0, (+s.jeep.kpPct || 0) / 100)), J0 = +s.jeep.tareR || 0;
+    const jT = (J0 - K0t * c / Lj) / (1 - fj);
+    jeep = Object.assign({}, s.jeep, { tare: jT, tareCg: Lj * (1 - fj) });
+    Kfw0 = jT * fj + K0t * (Lj - c) / Lj;
+  }
+  let acc = 0; const rx = [];
+  for (let i = 0; i < g.tractor.driveN; i++) { acc += (+g.tractor.gaps[i] || 0) / 12; rx.push(acc); }
+  const Wr = (rx[0] + rx[rx.length - 1]) / 2, xfwr = Wr - g.tractor.fw / 12;
+  const S0 = +s.tractor.steerCurb || 0, D0 = +s.tractor.driveCurb || 0;
+  const steerAlone = S0 - Kfw0 * (Wr - xfwr) / Wr, driveAlone = S0 + D0 - Kfw0 - steerAlone;
+  const tractor = Object.assign({}, s.tractor, { steerCurb: steerAlone, driveCurb: driveAlone });
+  return Object.assign({}, s, { tractor, jeep, trailer });
+}
+function solveCombo(s0) { return solveCore(resolve(ftState(s0))); }
+function solveCore(s) {
+  const units = [];
+  if (s.jeep.on) units.push(Object.assign({}, s.jeep, { kind: 'jeep' }));
+  units.push(Object.assign({}, s.trailer, { kind: 'trailer' }));
+  const sol = []; let inLoad = 0;
+  for (let i = units.length - 1; i >= 0; i--) { sol[i] = solveUnit(units[i], inLoad); inLoad = sol[i].K; }
+  const tr = solveTractor(s.tractor, inLoad);
+  const lim = s.limits, axles = [];
+  tr.axles.forEach(a => {
+    axles.push({ x: a.x, w: a.w, down: a.down, kind: a.kind, gid: 'tractor', idx: a.idx, group: a.kind === 'steer' ? 'steer' : 'drive', label: a.kind === 'steer' ? 'Steer' : 'Drive ' + (a.idx + 1) });
+  });
+  let kpG = tr.xfw; const unitInfo = [];
+  units.forEach((u, i) => {
+    const r = sol[i], name = u.kind === 'jeep' ? 'Jeep' : 'Trailer';
+    r.axles.forEach(a => {
+      axles.push({ x: kpG + a.x, w: a.w, down: a.down, kind: a.kind, gid: a.kind === 'boost' ? 'boost' : u.kind, idx: a.idx, group: u.kind, label: a.kind === 'boost' ? 'Booster ' + (a.idx + 1) : name + ' ' + (a.idx + 1) });
+    });
+    unitInfo.push({ kind: u.kind, kpG, K: r.K, R: r.R, xc: kpG + r.xc, coupling: u.coupling, u });
+    kpG += +u.coupling || 0;
+  });
+  axles.sort((a, b) => a.x - b.x);
+  const total = axles.reduce((s, a) => s + a.w, 0);
+  const groups = [];
+  const mk = (id, label, filt, limitOverride) => {
+    const mem = axles.filter(filt), dn = mem.filter(a => a.down);
+    if (!dn.length) return;
+    const tot = dn.reduce((s, a) => s + a.w, 0);
+    const L = Math.max(...dn.map(a => a.x)) - Math.min(...dn.map(a => a.x));
+    const limit = limitOverride != null ? limitOverride : allowedSpan(L, dn.length, lim);
+    const rate = lim.rate && +lim.rate[id] > 0 ? +lim.rate[id] : 0;
+    groups.push({ id, label, n: dn.length, total: tot, per: tot / dn.length, limit, margin: limit - tot, status: statusOf(tot, limit), rating: rate, ratingOver: rate > 0 && tot / dn.length > rate + 0.5, L, x0: Math.min(...mem.map(a => a.x)), x1: Math.max(...mem.map(a => a.x)) });
+  };
+  mk('steer', 'Steer', a => a.group === 'steer', lim.steer);
+  mk('drive', 'Drive', a => a.group === 'drive');
+  if (s.jeep.on) mk('jeep', 'Jeep', a => a.group === 'jeep');
+  mk('trailer', 'Trailer', a => a.group === 'trailer');
+  // bridge scan over every run of consecutive axles
+  const dn = axles.filter(a => a.down), viol = []; let worst = null;
+  for (let i = 0; i < dn.length; i++) {
+    let sum = 0;
+    for (let j = i; j < dn.length; j++) {
+      sum += dn[j].w;
+      const N = j - i + 1, L = dn[j].x - dn[i].x;
+      if (lim.mode === 'custom' && N > 1) continue;
+      const allow = allowedSpan(L, N, lim);
+      const m = allow - sum, rec = { i, j, N, L, allow, sum, margin: m };
+      if (!worst || m < worst.margin) worst = rec;
+      if (m < -0.5) viol.push(rec);
+    }
+  }
+  const grossLimit = lim.gross;
+  const kpraOn = lim.kpraOn && !s.jeep.on && s.trailer.type !== 'lowboy';
+  const kpra = s.trailer.kpToAxle, kpraOver = kpraOn && kpra > lim.kpra + 1e-9;
+  const maxAxle = Math.max(...dn.map(a => a.w));
+  const over = groups.some(g => g.status === 'over' || g.ratingOver) || total > grossLimit + 0.5 || viol.length > 0 || kpraOver || (lim.mode === 'custom' && maxAxle > lim.axle + 0.5);
+  return { axles, groups, total, grossLimit, grossStatus: statusOf(total, grossLimit), bridge: { worst, viol, dn }, kpraOn, kpra, kpraOver, units: unitInfo, tractor: tr, over, maxAxle };
+}
+/*PHYSICS_END*/
+
+/* ---------- defaults and presets ---------- */
+const stepAt = tr => { const kf = +tr.kpFront || 0, up = +tr.upperLen > 0 ? +tr.upperLen : (+tr.lowerLen > 0 && tr.overall > 0 ? tr.overall - tr.lowerLen : 0); return up > 0 ? up - kf : 11; };
+const lowSec = tr => {
+  const kf = +tr.kpFront || 0, ov = +tr.overall || 0, g = +tr.lowGoose || 0, d = +tr.lowDeck || 0, rr = +tr.lowRear || 0, L = ov > 0 ? ov - kf : 0;
+  let ne = g > 0 ? g - kf : (ov > 0 && d > 0 ? ov - d - rr - kf : 9);
+  ne = Math.max(1, ne);
+  let we = d > 0 ? ne + d : (ov > 0 && rr > 0 ? ov - rr - kf : (L > 0 ? L : 1e9));
+  if (L > 0) we = Math.min(we, L);
+  return { ne, we, rise: L > 0 && we < L - 0.5 };
+};
+const deckLen = (tr, fb = 4) => tr.overall > 0 ? tr.overall - (+tr.kpFront || 0) : (+tr.kpToAxle || 0) + fb;
+const FWS = () => ({ on: false, min: -4, max: 16 });
+const tractorWith = (k, steer, drive, extra) => Object.assign({ steerCurb: steer, driveCurb: drive, fwSlide: FWS() }, T[k](), extra || {});
+const T = {
+  tandem: () => ({ driveN: 2, gaps: [194, 52], fw: 6, up: [] }),
+  tri: () => ({ driveN: 3, gaps: [188, 52, 52], fw: 8, up: [] }),
+  pusher: () => ({ driveN: 3, gaps: [167, 52, 52], fw: 6, up: [] })
+};
+const TT = {
+  van: { label: 'Dry van / reefer', tare: 14500, tareCg: 26.5, kpToAxle: 40, n: 2, sp: 49, overall: 53, kpFront: 3, shape: 'van', slide: { on: true, min: 36, max: 41 }, boost: null, cargo: [{ name: 'Freight', w: 41000, x: 22.5, len: 40 }] },
+  flat: { label: 'Flatbed', tare: 10500, tareCg: 22, kpToAxle: 40, n: 2, sp: 49, overall: 48, kpFront: 2.5, shape: 'flat', slide: { on: false, min: 38, max: 41 }, boost: null, cargo: [{ name: 'Steel coils', w: 44000, x: 22.5, len: 30 }] },
+  step: { label: 'Step deck', tare: 11800, tareCg: 21, kpToAxle: 40, n: 2, sp: 49, overall: 48, kpFront: 2.5, shape: 'step', slide: { on: false, min: 38, max: 41 }, boost: null, cargo: [{ name: 'Machine', w: 42000, x: 26, len: 24 }] },
+  lowboy: { label: 'Lowboy / RGN', tare: 17000, tareCg: 13, kpToAxle: null, kpRef: 26, n: 3, sp: 52, overall: 34, kpFront: 2, shape: 'low', slide: { on: false, min: 24, max: 28 }, boost: { has: true, installed: true, n: 2, gap: 4, sp: 52, tare: 3600 }, cargo: [{ name: 'Excavator', w: 78000, x: 19.5, len: 20 }] },
+  custom: { label: 'Custom trailer', tare: 12000, tareCg: 22, kpToAxle: 38, n: 2, sp: 49, overall: 46, kpFront: 2, shape: 'flat', slide: { on: false, min: 36, max: 41 }, boost: null, cargo: [{ name: 'Load', w: 30000, x: 20, len: 20 }] }
+};
+function trailerEx(type) {
+  const t = TT[type], b = t.boost;
+  return {
+    type, kpPct: Math.round(1000 * (t.kpToAxle || t.kpRef) - 1000 * t.tareCg) / 10 / (t.kpToAxle || t.kpRef), tareR: Math.round(t.tare * t.tareCg / (t.kpToAxle || t.kpRef)), kpToAxle: t.kpToAxle || null, n: t.n, gaps: Array(t.n - 1).fill(t.sp), overall: t.overall, kpFront: t.kpFront, shape: t.shape, up: [],
+    slide: Object.assign({}, t.slide),
+    boost: b ? { has: b.has, installed: b.installed, n: b.n, gaps: [b.gap * 12].concat(Array(b.n - 1).fill(b.sp)), tare: b.tare, up: [] } : { has: false, installed: true, n: 2, gaps: [48, 52], tare: 3600, up: [] },
+    cargo: t.cargo.map(c => Object.assign({}, c))
+  };
+}
+const JEEPEx = () => ({ on: false, kpPct: 33.3, tareR: 11600, kpToAxle: 9, n: 3, gaps: [48, 48], coupling: 7, up: [] });
+const LIM_FED = () => ({ mode: 'federal', steer: 12000, gross: 80000, axle: 20000, kpraOn: true, kpra: 41 });
+const PRESETS = {
+  van: { label: 'Dry van, 5 axle', build: () => ({ tractor: tractorWith('tandem', 10533, 13961, { fwSlide: { on: true, min: -4, max: 16 } }), jeep: JEEPEx(), trailer: trailerEx('van'), limits: LIM_FED() }) },
+  flat: { label: 'Flatbed, 5 axle', build: () => ({ tractor: tractorWith('tandem', 10529, 13796), jeep: JEEPEx(), trailer: trailerEx('flat'), limits: LIM_FED() }) },
+  step: { label: 'Step deck', build: () => ({ tractor: tractorWith('tandem', 10553, 14652), jeep: JEEPEx(), trailer: trailerEx('step'), limits: LIM_FED() }) },
+  lifts: { label: 'Pusher + tri-axle flatbed', build: () => { const tr = trailerEx('flat'); tr.n = 3; tr.gaps = [49, 49]; tr.kpToAxle = 41; tr.cargo = [{ name: 'Pipe', w: 42000, x: 24, len: 36 }]; return { tractor: tractorWith('pusher', 11329, 14796), jeep: JEEPEx(), trailer: tr, limits: LIM_FED() }; } },
+  lowboy: { label: 'Tri-drive, jeep and lowboy', build: () => ({ tractor: tractorWith('tri', 11946, 18443), jeep: Object.assign(JEEPEx(), { on: true }), trailer: Object.assign(trailerEx('lowboy'), { kpToAxle: 26 }), limits: { mode: 'custom', steer: 14600, gross: 160000, axle: 20000, kpraOn: false, kpra: 41 } }) }
+};
+// Blank setup: every number the user measures starts empty. Only choices (axle counts, type) have starting values.
+const KP_EST = { van: 33.8, flat: 45, step: 47.5, lowboy: 50, custom: 42 };
+function trailerFrom(type) {
+  const t = TT[type];
+  return {
+    type, kpPct: KP_EST[type], tareR: null, kpToAxle: null, n: t.n, gaps: Array(t.n - 1).fill(null), overall: null, kpFront: null, shape: t.shape, up: [],
+    slide: { on: false, min: null, max: null },
+    boost: { has: false, installed: true, n: 2, gaps: [null, null], tare: null, up: [] },
+    cargo: [{ name: 'Load', w: null, x: null, len: null }]
+  };
+}
+const JEEP = () => ({ on: false, kpPct: 33.3, tareR: null, kpToAxle: null, n: 3, gaps: [null, null, null].slice(0, 2), coupling: null, overall: null, up: [] });
+const BLANK = () => ({
+  tractor: { steerCurb: null, driveCurb: null, fuelGal: null, fuelX: null, overall: null, driveN: 2, gaps: [null, null], fw: null, up: [], fwSlide: { on: false, min: null, max: null } },
+  jeep: JEEP(), trailer: trailerFrom('van'), limits: Object.assign(LIM_FED(), { kpra: 492, kpraOn: false })
+});
+const STORE = 'axle-planner-v10';
+let CLOUD = null, COLL = null, MIGRATED = false, FILE = null;
+let S = BLANK();
+try { const saved = JSON.parse(localStorage.getItem(STORE) || 'null'); if (saved && saved.tractor && saved.trailer && saved.jeep && saved.limits && saved.trailer.boost && saved.trailer.slide && saved.trailer.kpFront !== undefined && typeof saved.trailer.kpPct === 'number' && typeof saved.jeep.kpPct === 'number' && saved.ref && Array.isArray(saved.tractor.up) && Array.isArray(saved.tractor.gaps) && Array.isArray(saved.trailer.gaps) && Array.isArray(saved.trailer.boost.gaps) && 'steerCurb' in saved.tractor) S = saved; } catch (e) {}
+function normalize() {
+  const fix = (o, n) => { o.up = Array.from({ length: n }, (_, i) => !!(Array.isArray(o.up) && o.up[i])); };
+  fix(S.tractor, S.tractor.driveN); fix(S.jeep, S.jeep.n); fix(S.trailer, S.trailer.n); fix(S.trailer.boost, S.trailer.boost.n);
+  const gp = (o, count, def) => { const a = Array.isArray(o.gaps) ? o.gaps.slice(0, count) : []; while (a.length < count) a.push(a.length ? a[a.length - 1] : def); o.gaps = a; };
+  S.limits.rate = Object.assign({ steer: null, drive: null, jeep: null, trailer: null }, S.limits.rate || {});
+  gp(S.tractor, S.tractor.driveN, null); gp(S.jeep, S.jeep.n - 1, null); gp(S.trailer, S.trailer.n - 1, null); gp(S.trailer.boost, S.trailer.boost.n, null);
+}
+normalize();
+if (!S.ref) S.ref = snapGeom(S);
+
+/* ---------- helpers ---------- */
+const $ = (q, el = document) => el.querySelector(q);
+const fmt = n => Math.round(n).toLocaleString('en-US');
+const fmt1 = n => (Math.round(n * 10) / 10).toFixed(1);
+const sgn = n => (n >= 0 ? '+' : '−') + fmt(Math.abs(n));
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+function getP(path) { return path.split('.').reduce((o, k) => o[k], S); }
+function setP(path, v) { const k = path.split('.'), last = k.pop(); k.reduce((o, p) => o[p], S)[last] = v; }
+
+// Lengths are typed as feet and inches. One number is inches ("144" is 12' 0"); two numbers are feet then inches ("10 9", "26 18" is 27' 6").
+// Everything stored and solved is still in inches; the box just shows it as feet and inches once you leave it.
+function parseLen(str) {
+  let t = String(str == null ? '' : str).trim().toLowerCase();
+  if (t === '') return '';
+  t = t.replace(/[’′‘`]/g, "'").replace(/[”″“]/g, '"').replace(/\b(feet|foot|ft)\b/g, "'").replace(/\b(inches|inch|in)\b/g, '"').replace(/''/g, '"');
+  let m = t.match(/^(-?)\s*(\d+(?:\.\d+)?|\.\d+)\s*'\s*(?:(\d+(?:\.\d+)?|\.\d+)\s*"?)?$/), v;
+  if (m) v = (+m[2]) * 12 + (+(m[3] || 0));
+  else if ((m = t.match(/^(-?)\s*(\d+(?:\.\d+)?|\.\d+)\s*"?$/))) v = +m[2];
+  else if ((m = t.match(/^(-?)\s*(\d+(?:\.\d+)?)[\s,\-]+(\d+(?:\.\d+)?|\.\d+)\s*"?$/))) v = (+m[2]) * 12 + (+m[3]);
+  else return null;
+  return m[1] === '-' ? -v : v;
+}
+function fmtLen(v) {
+  if (v === null || v === undefined || v === '' || isNaN(+v)) return '';
+  const sg = v < 0 ? '-' : '', tot = Math.round(Math.abs(+v) * 10) / 10;
+  let ft = Math.floor(tot / 12), inch = Math.round((tot - ft * 12) * 10) / 10;
+  if (inch >= 12) { ft += 1; inch = 0; }
+  return sg + ft + "' " + inch + '"';
+}
+const ftin = ft => { const i = Math.round(ft * 12); return Math.floor(i / 12) + "'" + (i % 12) + '"'; };
+
+function F(label, path, o = {}) {
+  const v0 = getP(path), v = (v0 === null || v0 === undefined) ? '' : v0;
+  const isLen = o.unit === 'in' && !o.text;
+  return `<label class="f${o.wide ? ' wide' : ''}"><span>${label}</span><span class="in"><input type="${o.text || isLen ? 'text' : 'number'}" ${o.text ? '' : isLen ? 'data-len="1" autocomplete="off" spellcheck="false"' : 'inputmode="decimal" step="any"'}${o.blank ? ' placeholder="enter" data-blank="1"' : ''} id="${path}" data-bind="${path}" value="${esc(isLen ? fmtLen(v) : v)}">${o.unit && !isLen ? `<em>${o.unit}</em>` : ''}</span>${o.hint ? `<small>${o.hint}</small>` : ''}</label>`;
+}
+function SEL(label, path, opts, o = {}) {
+  const v = getP(path), cur = o.type === 'bool' ? (v ? '1' : '0') : String(v);
+  return `<label class="f${o.wide ? ' wide' : ''}"><span>${label}</span><span class="in"><select id="${path}" data-bind="${path}" data-type="${o.type || 'str'}" data-struct="1">${opts.map(([val, t]) => `<option value="${val}"${String(val) === cur ? ' selected' : ''}>${t}</option>`).join('')}</select></span></label>`;
+}
+function CHK(label, path) { return `<label class="chk"><input type="checkbox" data-bind="${path}" data-struct="1"${getP(path) ? ' checked' : ''}> ${label}</label>`; }
+const AXN = [[1, '1 axle'], [2, '2 axles'], [3, '3 axles'], [4, '4 axles']];
+
+function overallHint(tr) {
+  let t = 'Front of trailer to rear of deck';
+  if (tr.kpToAxle > 0 && tr.boost.has && tr.boost.installed && tr.boost.n > 0) {
+    const f = ftState(S).trailer, mx = Math.max(...unitAxles(f).map(a => a.x)), withB = Math.max(f.overall || 0, (f.kpFront || 0) + mx + 1.5);
+    t += '. With boosters: ' + fmt(withB * 12) + ' in';
+  }
+  return t;
+}
+function gapGrid(path, labels) {
+  const arr = getP(path);
+  return `<div class="tl">Axle spacing</div><div class="gaps">${arr.map((v, i) => `<label class="f"><span>${labels[i]}</span><span class="in"><input type="text" data-len="1" autocomplete="off" spellcheck="false" placeholder="enter" data-blank="1" id="${path}.${i}" data-bind="${path}.${i}" value="${v === null || v === undefined ? '' : esc(fmtLen(v))}"></span></label>`).join('')}</div>`;
+}
+function toggles(g, n, up) {
+  let h = '<div class="tgs" role="group" aria-label="Axles carrying load">';
+  for (let i = 0; i < n; i++) h += `<button type="button" class="tg ${up[i] ? 'off' : 'on'}" data-act="axle" data-g="${g}" data-i="${i}" aria-pressed="${!up[i]}" title="Axle ${i + 1}: ${up[i] ? 'raised, click to lower' : 'down, click to raise'}">${i + 1}<small>${up[i] ? 'up' : 'on'}</small></button>`;
+  return h + '</div>';
+}
+let LASTW = 0;
+function renderRig() {
+  { let acc = 0; const rx = []; for (let i = 0; i < S.tractor.driveN; i++) { acc += +S.tractor.gaps[i] || 0; rx.push(acc); } LASTW = (rx[0] + rx[rx.length - 1]) / 2; }
+  const t = S.tractor, j = S.jeep, tr = S.trailer, b = tr.boost;
+  const TAX = [[1, '2 axles (single drive)'], [2, '3 axles'], [3, '4 axles'], [4, '5 axles']];
+  let h = `<div class="rig">`;
+  h += `<div class="rg"><h3>Tractor <span class="tag">${1 + t.driveN} axles</span></h3><div class="grid2">
+    ${SEL('Number of axles', 'tractor.driveN', TAX, { type: 'num', wide: true })}
+    ${F('Steer axle empty', 'tractor.steerCurb', { unit: 'lb', blank: true, hint: 'Scaled empty, trailer attached' })}
+    ${F('Rear axles empty', 'tractor.driveCurb', { unit: 'lb', hint: 'Whole rear group', blank: true })}
+    ${F('5th wheel', 'tractor.fw', { unit: 'in', hint: 'From center of rear axles, + ahead', wide: true, blank: true })}
+    ${F('Overall length', 'tractor.overall', { unit: 'in', hint: 'Bumper to back of frame', wide: true, blank: true })}
+    ${F('Extra fuel', 'tractor.fuelGal', { unit: 'gal', blank: true, hint: '<span data-fuel></span>Beyond what was on the scale when weighed empty' })}
+    ${F('Tank center', 'tractor.fuelX', { unit: 'in', blank: true, hint: 'From center of rear axles, + ahead' })}
+  </div>${CHK('Sliding 5th wheel', 'tractor.fwSlide.on')}${t.fwSlide.on ? `<div class="grid2" style="margin-top:8px">${F('Slide from', 'tractor.fwSlide.min', { unit: 'in', blank: true })}${F('Slide to', 'tractor.fwSlide.max', { unit: 'in', blank: true })}</div>` : ''}${gapGrid('tractor.gaps', Array.from({ length: t.driveN }, (_, i) => `${i + 1} to ${i + 2}`))}<p class="note" style="margin:6px 0 0">Wheelbase, steer to center of rear axles: ${LASTW > 0 ? fmt1(LASTW) + ' in' : 'enter the spacing'}</p><div class="tl">Rear axles on or off</div>${toggles('tractor', t.driveN, t.up)}</div>`;
+  h += `<div class="rg"><h3>Jeep <span class="tag">${j.on ? j.n + ' axles' : 'not used'}</span></h3>${CHK('Run a jeep dolly', 'jeep.on')}`;
+  if (j.on) h += `<div class="grid2" style="margin-top:10px">
+    ${SEL('Number of axles', 'jeep.n', AXN, { type: 'num', wide: true })}
+    ${F('Jeep axles empty', 'jeep.tareR', { unit: 'lb', wide: true, hint: 'Scaled empty, with the trailer attached', blank: true })}
+    ${F('Kingpin to center of axle group', 'jeep.kpToAxle', { unit: 'in', wide: true, blank: true })}
+    ${F('Trailer kingpin sits at', 'jeep.coupling', { unit: 'in', hint: 'From the jeep kingpin', wide: true, blank: true })}
+    ${F('Overall length', 'jeep.overall', { unit: 'in', hint: 'Front to rear, kingpin ~10 in back', wide: true, blank: true })}
+  </div>${gapGrid('jeep.gaps', Array.from({ length: j.n - 1 }, (_, i) => `${i + 1} to ${i + 2}`))}<div class="tl">Jeep axles on or off</div>${toggles('jeep', j.n, j.up)}<p class="note" id="eff-jeep"></p>`;
+  h += `</div>`;
+  h += `<div class="rg"><h3>Trailer <span class="tag">${tr.n} axles</span></h3><div class="grid2">
+    ${SEL('Type', 'trailer.type', Object.keys(TT).map(k => [k, TT[k].label]), { wide: true })}
+    ${SEL('Number of axles', 'trailer.n', AXN, { type: 'num', wide: true })}
+    ${F('Trailer axles empty', 'trailer.tareR', { unit: 'lb', wide: true, hint: 'Scaled empty, all axles down, boosters off', blank: true })}
+    ${F('Overall length', 'trailer.overall', { unit: 'in', hint: overallHint(tr), wide: true, blank: true })}
+    ${tr.shape === 'low' ? F('Gooseneck length', 'trailer.lowGoose', { unit: 'in', hint: 'Front of trailer to where the deck drops', blank: true }) + F('Deck length', 'trailer.lowDeck', { unit: 'in', hint: 'The low deck', blank: true }) + F('Rear over axles', 'trailer.lowRear', { unit: 'in', hint: 'Raised rear section over the axles', wide: true, blank: true }) : ''}
+    ${tr.shape === 'step' ? F('Upper deck length', 'trailer.upperLen', { unit: 'in', hint: 'Front of trailer to the step', blank: true }) + F('Lower deck length', 'trailer.lowerLen', { unit: 'in', hint: 'Step to rear of deck', blank: true }) : ''}
+    ${F('Kingpin from front', 'trailer.kpFront', { unit: 'in', blank: true })}
+    ${F('Kingpin to center of axle group', 'trailer.kpToAxle', { unit: 'in', wide: true, blank: true, hint: 'Center of all axles in the group, raised or not' })}
+  </div>${gapGrid('trailer.gaps', Array.from({ length: tr.n - 1 }, (_, i) => `${i + 1} to ${i + 2}`))}<div class="tl">Trailer axles on or off</div>${toggles('trailer', tr.n, tr.up)}<p class="note" id="eff-trailer"></p>${CHK('Sliding axle group (tandem slide)', 'trailer.slide.on')}${tr.slide.on ? `<div class="grid2" style="margin-top:8px">${F('Slide from', 'trailer.slide.min', { unit: 'in', blank: true, hint: 'Kingpin to center of axle group' })}${F('Slide to', 'trailer.slide.max', { unit: 'in', blank: true })}</div>` : ''}</div>`;
+  h += `<div class="rg"><h3>Boosters <span class="tag">${b.has && b.installed ? b.n + ' axles' : b.has ? 'removed' : 'none'}</span></h3>${CHK('Trailer has boosters', 'trailer.boost.has')}`;
+  if (b.has) {
+    h += `<div class="grid2" style="margin-top:10px">
+    ${SEL('Boosters are', 'trailer.boost.installed', [['1', 'Installed'], ['0', 'Removed']], { type: 'bool', wide: true })}`;
+    if (b.installed) h += `${SEL('Number of axles', 'trailer.boost.n', AXN, { type: 'num', wide: true })}
+    ${F('Booster empty', 'trailer.boost.tare', { unit: 'lb', blank: true })}
+    </div>${gapGrid('trailer.boost.gaps', Array.from({ length: b.n }, (_, i) => i === 0 ? `T${tr.n} to B1` : `B${i} to B${i + 1}`))}<div class="tl">Booster axles on or off</div>${toggles('boost', b.n, b.up)}`;
+    else h += `</div>`;
+  }
+  h += `</div></div>`;
+  $('#rig').innerHTML = h;
+  if (typeof paintFt === 'function') paintFt();
+}
+const SETUPS = 'axle-planner-setups';
+let TOAST_T = null;
+function toast(msg, kind) {
+  let el = document.getElementById('toast');
+  if (!el) { el = document.createElement('div'); el.id = 'toast'; el.setAttribute('role', 'status'); document.body.appendChild(el); }
+  el.className = 'toast' + (kind === 'err' ? ' err' : ''); el.textContent = msg; el.hidden = false;
+  clearTimeout(TOAST_T); TOAST_T = setTimeout(() => { el.hidden = true; }, kind === 'err' ? 4200 : 2200);
+}
+try { const th = localStorage.getItem('axle-theme'); if (th === 'dark' || th === 'light') document.documentElement.setAttribute('data-theme', th); } catch (e) {}
+const LINK_KEY = 'axle-planner-links';
+const STATES = ['Alabama','Alaska','Arizona','Arkansas','California','Colorado','Connecticut','Delaware','Florida','Georgia','Hawaii','Idaho','Illinois','Indiana','Iowa','Kansas','Kentucky','Louisiana','Maine','Maryland','Massachusetts','Michigan','Minnesota','Mississippi','Missouri','Montana','Nebraska','Nevada','New Hampshire','New Jersey','New Mexico','New York','North Carolina','North Dakota','Ohio','Oklahoma','Oregon','Pennsylvania','Rhode Island','South Carolina','South Dakota','Tennessee','Texas','Utah','Vermont','Virginia','Washington','West Virginia','Wisconsin','Wyoming'];
+const LINKS0 = [
+  ['Oregon Weight Table 1 (legal)', 'https://www.oregon.gov/odot/Forms/Motcarr/8110.pdf'],
+  ['Oregon Weight Table 2', 'https://www.oregon.gov/odot/Forms/Motcarr/8111.pdf'],
+  ['Oregon Weight Table 3', 'https://www.oregon.gov/ODOT/Forms/Motcarr/8112.pdf'],
+  ['Oregon Weight Table 4', 'https://www.oregon.gov/odot/Forms/Motcarr/8113.pdf'],
+  ['Oregon Weight Table 5', 'https://www.oregon.gov/odot/Forms/Motcarr/8114.pdf']
+].map(([name, url]) => ({ name, url, built: true }));
+let MYLINKS = []; try { const a = JSON.parse(localStorage.getItem(LINK_KEY) || '[]'); if (Array.isArray(a)) MYLINKS = a.filter(x => x && typeof x.url === 'string' && /^https?:\/\//i.test(x.url)); } catch (e) {}
+const HIDE_KEY = 'axle-planner-links-hidden';
+let HIDDEN = []; try { const a = JSON.parse(localStorage.getItem(HIDE_KEY) || '[]'); if (Array.isArray(a)) HIDDEN = a; } catch (e) {}
+function saveHidden() { try { localStorage.setItem(HIDE_KEY, JSON.stringify(HIDDEN)); } catch (e) { toast('This browser blocked saving the change.', 'err'); } }
+function saveLinks() { try { localStorage.setItem(LINK_KEY, JSON.stringify(MYLINKS)); } catch (e) { toast('This browser blocked saving the link.', 'err'); } }
+let LINKS_OPEN = false;
+document.addEventListener('toggle', e => { if (e.target && e.target.id === 'linksBox') LINKS_OPEN = e.target.open; }, true);
+let PICK_STATE = '', LINK_NAME = '', LINK_URL = '';
+let BACKUP_OPEN = false;
+document.addEventListener('toggle', e => { if (e.target && e.target.id === 'backupBox') BACKUP_OPEN = e.target.open; }, true);
+let SAVE_TRUCK = '', SAVE_NOTE = '', EDIT_ID = null, EDIT_T = '', EDIT_N = '';
+(async () => {
+  try {
+    const [db, user] = [await claude.use('db'), await claude.use('user')]; if (!db || !user) return;
+    const id = await user.id(); if (!id) return;
+    COLL = db.collection('data/users/' + id + '/setups');
+    COLL.onSnapshot(snap => {
+      CLOUD = snap.docs.map(d => { const v = d.data() || {}; let st = null; try { st = JSON.parse(v.state); } catch (e) {} return { id: d.id, truck: v.truck || '', type: v.type || '', at: v.at || 0, note: v.note || '', state: st }; }).filter(x => x.state);
+      if (!snap.metadata.fromCache || CLOUD.length) { if (!MIGRATED) { MIGRATED = true; getLocal().forEach(x => { if (!CLOUD.some(c => c.id === setupKey(x.truck, x.type))) COLL.doc(setupKey(x.truck, x.type)).set({ truck: x.truck, type: x.type, at: x.at, note: x.note || '', state: JSON.stringify(x.state) }).catch(() => {}); }); } }
+      renderCloudCard();
+    }, () => { COLL = null; CLOUD = null; });
+  } catch (e) { COLL = null; CLOUD = null; }
+})();
+function renderCloudCard() { const el = document.getElementById('form'); if (el && typeof renderForm === 'function' && !(document.activeElement && /^(saveTruck|saveNote|editTruck|editNote)$/.test(document.activeElement.id))) renderForm(); }
+const setupKey = (truck, type) => (String(truck).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'none') + '__' + String(type).toLowerCase().replace(/[^a-z0-9]+/g, '-');
+function getLocal() { try { const a = JSON.parse(localStorage.getItem(SETUPS) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+function getSetups() { return COLL && CLOUD ? CLOUD.slice() : FILE ? FILE.slice() : getLocal(); }
+// Windows program: setups.json sits next to the .exe (the local server answers /api/setups; the web page does not)
+function putFile(a) { FILE = a; fetch('/api/setups', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(a) }).then(r => { if (!r.ok) throw 0; }).catch(() => toast('Could not write setups.json next to the program. Is the folder read-only?', 'err')); }
+try { fetch('/api/setups').then(r => (r.ok && /json/.test(r.headers.get('content-type') || '')) ? r.json() : null).then(a => { if (!Array.isArray(a) || COLL) return; FILE = a; if (!a.length) { const l = getLocal(); if (l.length) putFile(l); } renderForm(); }).catch(() => {}); } catch (e) {}
+function writeSetup(rec) {
+  if (!COLL && FILE) { const a = FILE.filter(x => x.id !== rec.id); a.push(rec); putFile(a); }
+  else if (COLL) COLL.doc(rec.id).set({ truck: rec.truck, type: rec.type, at: rec.at, note: rec.note || '', state: JSON.stringify(rec.state) }).catch(() => toast('Could not save to your account. Try again.', 'err'));
+  else { const a = getLocal().filter(x => x.id !== rec.id); a.push(rec); if (!putSetups(a)) toast('This browser blocked saving, so the setup was not kept.', 'err'); }
+}
+function removeSetup(id) {
+  if (!COLL && FILE) putFile(FILE.filter(q => q.id !== id));
+  else if (COLL) COLL.doc(id).delete().catch(() => {});
+  else putSetups(getLocal().filter(q => q.id !== id));
+}
+function putSetups(a) { try { localStorage.setItem(SETUPS, JSON.stringify(a)); return true; } catch (e) { return false; } }
+function backupJson() { return JSON.stringify({ app: 'axle-weight-planner', version: 1, setups: getSetups() }, null, 1); }
+function importSetups(txt) {
+  let d; try { d = JSON.parse(txt); } catch (e) { toast('That is not a valid backup.', 'err'); return; }
+  const a = Array.isArray(d) ? d : d && Array.isArray(d.setups) ? d.setups : null;
+  if (!a) { toast('That is not a valid backup.', 'err'); return; }
+  let n = 0;
+  a.forEach(x => { if (!x || typeof x !== 'object' || !x.state || typeof x.state !== 'object' || !x.state.tractor || !x.state.trailer) return; const truck = String(x.truck || ''), type = String(x.type || 'Trailer'); writeSetup({ id: setupKey(truck, type), truck, type, at: +x.at || Date.now(), note: String(x.note || ''), state: JSON.parse(JSON.stringify(x.state)) }); n++; });
+  renderAll(); toast(n ? 'Imported ' + n + ' setup' + (n === 1 ? '' : 's') : 'No setups found in that backup', n ? '' : 'err');
+}
+document.addEventListener('change', e => { if (e.target && e.target.id === 'impFile') { const f = e.target.files && e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = () => importSetups(String(r.result)); r.onerror = () => toast('Could not read that file.', 'err'); r.readAsText(f); e.target.value = ''; } });
+function renderForm() {
+  const t = S.tractor, j = S.jeep, tr = S.trailer;
+  let h = '';
+  const list = getSetups().sort((a, b) => b.at - a.at);
+  h += `<section class="card" id="setupsCard"><h2>Saved setups <span class="tag">${list.length}</span></h2><p class="sub">Saves everything on this page under a truck number and the trailer type. Saving the same truck and trailer type again replaces it. ${COLL ? 'Kept in your account, so it follows you to any device.' : FILE ? 'Kept in setups.json next to the program.' : 'Kept in this browser only.'}</p>
+    <div class="cargo" style="grid-template-columns:minmax(0,1fr) minmax(0,1.4fr) auto"><label class="f" style="grid-column:auto"><span>Truck number</span><span class="in"><input type="text" id="saveTruck" placeholder="e.g. 214" value="${esc(SAVE_TRUCK)}"></span></label><label class="f" style="grid-column:auto"><span>Notes (optional)</span><span class="in"><input type="text" id="saveNote" placeholder="driver, route, quirks" value="${esc(SAVE_NOTE)}"></span></label><button class="btn sm" data-act="savesetup">Save</button></div>
+    ${list.length ? list.map(x => EDIT_ID === x.id ? `<div class="saved"><div class="edit"><label class="f"><span>Truck number</span><span class="in"><input type="text" id="editTruck" value="${esc(EDIT_T)}"></span></label><label class="f"><span>Notes</span><span class="in"><input type="text" id="editNote" value="${esc(EDIT_N)}"></span></label><div class="row"><button class="btn sm" data-act="updsetup" data-id="${x.id}">Update</button><button class="btn ghost sm" data-act="copysetup" data-id="${x.id}">Save as copy</button><button class="btn ghost sm" data-act="canceledit">Cancel</button></div></div></div>` : `<div class="saved"><div class="info"><strong>${esc(x.truck || 'No number')}</strong> · ${esc(x.type)}<div class="note" style="margin:0">${new Date(x.at).toLocaleDateString()}${x.note ? ' · ' + esc(x.note) : ''}</div></div><button class="btn ghost sm" data-act="loadsetup" data-id="${x.id}">Load</button><button class="btn ghost sm" data-act="editsetup" data-id="${x.id}">Edit</button><button class="xbtn" data-act="delsetup" data-id="${x.id}" aria-label="Delete ${esc(x.truck)}">×</button></div>`).join('') : '<p class="note">Nothing saved yet.</p>'}
+    <details class="ex" id="backupBox"${BACKUP_OPEN ? ' open' : ''}><summary>Backup and restore</summary><p class="note">Export every saved setup to one file, and import it on another device or program. Importing adds to what you have, and a truck and trailer type that already exists is replaced.</p>
+    <div class="row"><button class="btn ghost sm" data-act="expsetups">Download backup</button><button class="btn ghost sm" data-act="copysetupsjson">Copy backup text</button><label class="btn ghost sm" style="cursor:pointer">Import file<input type="file" id="impFile" accept=".json,application/json" hidden></label></div>
+    <label class="f" style="margin-top:10px"><span>Or paste backup text</span><span class="in"><textarea id="impText" rows="3" style="width:100%;font:inherit;background:transparent;border:0;color:inherit;resize:vertical" placeholder="Paste a backup here"></textarea></span></label>
+    <div class="row" style="margin-top:8px"><button class="btn ghost sm" data-act="imptext">Import pasted text</button></div></details></section>`;
+  
+
+  const cargoTotal = tr.cargo.reduce((s, c) => s + (+c.w || 0), 0), cg = cargoTotal ? tr.cargo.reduce((s, c) => s + (+c.w || 0) * (+c.x || 0), 0) / cargoTotal : 0;
+  h += `<section class="card" id="loadCard"><h2>Load <span class="tag">${fmt(cargoTotal)} lb</span></h2><p class="sub">Distance is from the trailer kingpin to the center of each piece.</p>`;
+  tr.cargo.forEach((c, i) => {
+    h += `<div class="cargo">${F('Item', `trailer.cargo.${i}.name`, { text: true })}${F('Weight', `trailer.cargo.${i}.w`, { unit: 'lb', blank: true })}${F('Centered at (from kingpin)', `trailer.cargo.${i}.x`, { unit: 'in', blank: true, hint: `<span data-share="${i}"></span>` })}${F('Length', `trailer.cargo.${i}.len`, { unit: 'in', blank: true })}<button class="rm" data-act="rmcargo" data-i="${i}" aria-label="Remove ${esc(c.name)}">×</button></div>`;
+  });
+  h += `<button class="btn ghost sm" data-act="addcargo">Add load</button>`;
+  if (tr.cargo.length > 1) h += `<p class="note">Combined load center: ${fmt(cg)} in from kingpin.</p>`;
+  h += `</section>`;
+
+  const l = S.limits;
+  h += `<section class="card" id="limitsCard"><h2>Limits</h2><div class="grid2">
+    ${SEL('Rule set', 'limits.mode', [['federal', 'Federal legal (bridge formula)'], ['custom', 'Permit / custom per axle']], { wide: true })}
+    ${F('Steer axle limit', 'limits.steer', { unit: 'lb' })}
+    ${F('Gross limit', 'limits.gross', { unit: 'lb' })}
+    ${l.mode === 'custom' ? F('Per axle limit', 'limits.axle', { unit: 'lb' }) : ''}
+  </div>
+  <hr class="rule">${CHK('Check kingpin to rear axle', 'limits.kpraOn')}
+  ${l.kpraOn ? `<div class="subform"><div class="chips" style="margin-bottom:8px"><button class="chip${+l.kpra === 480 ? ' on' : ''}" data-act="kpra" data-v="480">California · 480 in</button><button class="chip${+l.kpra === 492 ? ' on' : ''}" data-act="kpra" data-v="492">Most states · 492 in</button></div><div class="grid2">${F('Maximum', 'limits.kpra', { unit: 'in' })}</div></div>` : ''}
+  <hr class="rule"><div class="tl" style="margin-top:0">Axle or tire ratings, per axle (optional)</div>
+  <div class="grid2">${F('Steer', 'limits.rate.steer', { unit: 'lb', blank: true })}${F('Drive', 'limits.rate.drive', { unit: 'lb', blank: true })}${F('Jeep', 'limits.rate.jeep', { unit: 'lb', blank: true })}${F('Trailer', 'limits.rate.trailer', { unit: 'lb', blank: true })}</div>
+  <p class="note">Flags a group when each axle carries more than its rating, even if the legal limit passes.</p>
+  </section>`;
+  h += `<details class="card"><summary>Examples</summary><p class="sub" style="margin-top:6px">Fills every field with sample numbers. Replace them with your own.</p><div class="chips">${Object.keys(PRESETS).map(k => `<button class="chip" data-act="preset" data-k="${k}">${PRESETS[k].label}</button>`).join('')}</div></details>`;
+  const links = LINKS0.filter(x => !HIDDEN.includes(x.url)).concat(MYLINKS);
+  const q = PICK_STATE ? 'https://www.google.com/search?q=' + encodeURIComponent(PICK_STATE + ' DOT oversize overweight permits weight table axle spacing pdf') : '';
+  h += `<details class="card" id="linksBox"${LINKS_OPEN || PICK_STATE || LINK_NAME || LINK_URL ? ' open' : ''}><summary>State weight tables · ${links.length} links</summary><p class="sub" style="margin-top:6px">Official tables are usually PDFs under the oversize and overweight permit pages of each state DOT site. Pick a state to search for its table, or keep your own links here.</p>
+    <div class="cargo" style="grid-template-columns:minmax(0,1fr) auto"><label class="f"><span>State</span><span class="in"><select id="pickState"><option value="">Choose a state</option>${STATES.map(x => `<option${x === PICK_STATE ? ' selected' : ''}>${x}</option>`).join('')}</select></span></label>${q ? `<a class="btn sm" style="text-decoration:none;align-self:end" href="${q}" target="_blank" rel="noopener noreferrer">Search</a>` : '<span></span>'}</div>
+    ${links.map(x => `<div class="saved"><div class="info"><a href="${esc(x.url)}" target="_blank" rel="noopener noreferrer">${esc(x.name)}</a></div><button class="xbtn" data-act="rmlink" data-u="${esc(x.url)}" aria-label="Remove ${esc(x.name)}">×</button></div>`).join('')}${HIDDEN.length ? '<button class="btn ghost sm" style="margin-top:10px" data-act="restorelinks">Restore the Oregon links</button>' : ''}
+    <div class="cargo" style="grid-template-columns:minmax(0,1fr) minmax(0,1.4fr) auto;margin-top:10px;border:0"><label class="f" style="grid-column:auto"><span>Name</span><span class="in"><input type="text" id="linkName" placeholder="e.g. Washington table" value="${esc(LINK_NAME)}"></span></label><label class="f" style="grid-column:auto"><span>Web address</span><span class="in"><input type="text" id="linkUrl" placeholder="https://" value="${esc(LINK_URL)}"></span></label><button class="btn sm" data-act="addlink">Add</button></div></details>`;
+  $('#form').innerHTML = h;
+  if (typeof paintFt === 'function') paintFt();
+}
+
+/* ---------- results ---------- */
+const STX = { ok: 'OK', near: 'Near limit', over: 'Over' };
+function stText(status, margin) { return status === 'over' ? 'OVER by ' + fmt(-margin) : status === 'near' ? 'Near · ' + fmt(margin) + ' left' : 'OK · ' + fmt(margin) + ' left'; }
+
+function renderStrip(r) {
+  const tiles = r.groups.map(g => ({ k: g.label, v: g.total, lim: g.limit, st: g.ratingOver ? 'over' : g.status, m: g.margin }));
+  tiles.push({ k: 'Gross', v: r.total, lim: r.grossLimit, st: r.grossStatus, m: r.grossLimit - r.total });
+  const b = r.bridge.worst;
+  if (S.limits.mode === 'federal' && b) {
+    const st = b.margin < -0.5 ? 'over' : b.margin <= 500 ? 'near' : 'ok';
+    tiles.push({ k: 'Bridge formula', v: b.sum, lim: b.allow, st, m: b.margin, sub: b.N + ' axles, ' + fmt(b.L * 12) + ' in' });
+  } else {
+    const st = statusOf(r.maxAxle, S.limits.axle);
+    tiles.push({ k: 'Heaviest axle', v: r.maxAxle, lim: S.limits.axle, st, m: S.limits.axle - r.maxAxle });
+  }
+  $('#strip').innerHTML = tiles.map(t => `<div class="tile ${t.st}"><div class="k">${t.k}</div><div class="v">${fmt(t.v)}<small>lb</small></div><div class="bar"><i style="width:${Math.min(100, t.v / t.lim * 100)}%"></i></div><div class="s">${stText(t.st, t.m)}${t.sub ? '' : ''}</div></div>`).join('');
+}
+
+function drawDiagram(r) {
+  const ax = r.axles, last = r.units[r.units.length - 1], fs = ftState(S), tr = fs.trailer, tOv = +fs.tractor.overall || 0;
+  const front = -3.5, deckEnd = last.kpG + deckLen(tr);
+  const rear = Math.max(Math.max(...ax.map(a => a.x)) + 3, deckEnd + 1, tOv ? tOv - 3 + 0.5 : 0);
+  const VW = 1100, padL = 20, padR = 20, sc = (VW - padL - padR) / (rear - front);
+  const X = f => padL + (f - front) * sc, gy = 200, R = Math.min(18, Math.max(10, 1.5 * sc));
+  let s = '';
+  s += `<line class="ground" x1="${X(front) - 10}" x2="${X(rear) + 10}" y1="${gy}" y2="${gy}"/>`;
+  // tractor
+  const W = r.tractor.W, lastDrive = Math.max(...ax.filter(a => a.group === 'drive').map(a => a.x));
+  const fwx = r.tractor.xfw;
+  const slw = Math.max(2, Math.min(5.5, W - 7.5 - 3)), railEnd = (tOv ? tOv - 3 : lastDrive + 3);
+  s += `<rect class="chrome" x="${X(7.2)}" y="44" width="4" height="46" rx="2"/>`;
+  s += `<path class="shape" d="M${X(2)},146 V104 L${X(3.1)},70 Q${X(3.2)},64 ${X(3.7)},64 H${X(7.3)} Q${X(7.5)},64 ${X(7.5)},67 V146 Z"/>`;
+  s += `<path class="glass" d="M${X(2.55)},100 L${X(3.4)},74 H${X(5.9)} V100 Z"/><path class="trim" d="M${X(5.9)},74 V142 M${X(3.2)},142 H${X(5.9)}"/><rect class="lamp" x="${X(5.2)}" y="112" width="11" height="3.5" rx="1.7"/>`;
+  s += `<path class="shape" d="M${X(-3)},146 V121 Q${X(-3)},112 ${X(-3) + 8},112 H${X(1.7)} L${X(2.2)},108 V146 Z"/><rect class="lamp" x="${X(-3) + 3}" y="119" width="6" height="9" rx="2.5"/><path class="trim" d="M${X(-1.8)},118 V140 M${X(-1.3)},118 V140 M${X(-0.8)},118 V140"/>`;
+  s += `<rect class="shape" x="${X(-2)}" y="146" width="${(railEnd + 2) * sc}" height="7" rx="3"/>`;
+  s += `<rect class="shape" x="${X(2.6)}" y="154" width="${3.6 * sc}" height="14" rx="7"/>`;
+  s += `<rect class="shape" x="${X(fwx) - 20}" y="138" width="40" height="8" rx="3"/>`;
+  // units
+  r.units.forEach((u, i) => {
+    const x0 = u.kpG;
+    if (u.kind === 'jeep') {
+      const x1 = x0 + (+u.coupling || 0), jo = +u.u.overall || 0, jl = jo ? jo : (x1 - x0 + 2.6);
+      s += `<rect class="shape" x="${X(x0 - 0.8)}" y="128" width="${Math.max(jl, x1 - x0 + 0.8) * sc}" height="12" rx="3"/>`;
+      s += `<rect class="shape" x="${X(x1) - 18}" y="122" width="36" height="8" rx="2"/>`;
+    } else {
+      const sh = tr.shape, L = deckLen(tr);
+      const kf = +tr.kpFront || 0;
+      if (sh === 'van') s += `<rect class="shape" x="${X(x0 - kf)}" y="54" width="${(L + kf) * sc}" height="82" rx="3"/><rect class="shape" x="${X(x0 - kf)}" y="136" width="${(L + kf) * sc}" height="6"/>`;
+      else if (sh === 'flat') s += `<rect class="shape" x="${X(x0 - kf)}" y="134" width="${(L + kf) * sc}" height="8" rx="2"/>`;
+      else if (sh === 'step') s += `<path class="shape" d="M${X(x0 - kf)},122 H${X(x0 + stepAt(tr))} V141 H${X(x0 + L)} V149 H${X(x0 + stepAt(tr))} V129 H${X(x0 - kf)} Z"/>`;
+      else { const q = lowSec(tr), ne = q.ne, we = q.rise ? q.we : L, top = q.rise ? `L${X(x0 + we + 3)},138 H${X(x0 + L)} V146 H${X(x0 + we + 3)} L${X(x0 + we)},158` : `V158`;
+        s += `<path class="shape" d="M${X(x0 - kf)},120 H${X(x0 + ne - 4)} L${X(x0 + ne)},150 H${X(x0 + we)} ${top} H${X(x0 + ne - 1)} L${X(x0 + ne - 5)},129 H${X(x0 - kf)} Z"/>`; }
+      // cargo
+      const base = (c) => sh === 'van' ? 132 : sh === 'flat' ? 134 : sh === 'step' ? ((+c.x) < stepAt(tr) ? 122 : 141) : (() => { const q = lowSec(tr), x = +c.x || 0; return x < q.ne - 1 ? 120 : (q.rise && x > q.we + 3 ? 138 : 150); })();
+      const hgt = sh === 'van' ? 56 : 44;
+      const lblEnd = [];
+      tr.cargo.forEach((c, ci) => {
+        const cx0 = x0 + (+c.x || 0) - (+c.len || 0) / 2, w = Math.max(6, (+c.len || 0) * sc), b = base(c);
+        s += `<rect class="cargo-r" x="${X(cx0)}" y="${b - hgt}" width="${w}" height="${hgt}" rx="3"/>`;
+        const mx = X(cx0) + w / 2;
+        if (w > 70) s += `<text class="tx" x="${mx}" y="${b - hgt / 2 - 2}" text-anchor="middle">${esc(c.name)}</text><text class="tx2 num" x="${mx}" y="${b - hgt / 2 + 13}" text-anchor="middle">${fmt(c.w)} lb</text>`;
+        else if (+c.w > 0) { const lw = Math.max(String(c.name || '').length * 7.2, 62) / 2; let row = 0; while (row < 3 && (lblEnd[row] || -1e9) > mx - lw - 6) row++; row = Math.min(row, 3); lblEnd[row] = mx + lw; const ty = b - hgt - 22 - row * 28; s += `<line class="lead" x1="${mx}" x2="${mx}" y1="${ty + 16}" y2="${b - hgt}"/><text class="tx" x="${mx}" y="${ty}" text-anchor="middle">${esc(c.name)}</text><text class="tx2 num" x="${mx}" y="${ty + 13}" text-anchor="middle">${fmt(c.w)} lb</text>`; }
+      });
+    }
+  });
+  // axle status color per group
+  const gstat = {}; r.groups.forEach(g => gstat[g.id] = g.status);
+  ax.forEach(a => {
+    const st = gstat[a.group] || 'ok', cy = a.down ? gy - R : gy - R - 16;
+    const attrs = a.kind === 'steer' ? '' : ` class="wheel" data-act="axle" data-g="${a.gid}" data-i="${a.idx}" tabindex="0" role="button" aria-label="${a.label}: ${a.down ? 'down, press to raise' : 'raised, press to lower'}"`;
+    const cx = X(a.x), hit = a.kind === 'steer' ? '' : `<rect x="${cx - R}" y="${cy - R - 20}" width="${2 * R}" height="${2 * R + 36}" fill="transparent"/>`;
+    s += `<g${attrs}>${a.kind === 'steer' ? '' : `<title>${a.label}: click to ${a.down ? 'raise' : 'lower'}</title>`}<g opacity="${a.down ? 1 : .45}"><circle class="tire" cx="${cx}" cy="${cy}" r="${R}"/><circle class="rim ${st}" cx="${cx}" cy="${cy}" r="${(R * 0.6).toFixed(1)}"/><circle class="hub" cx="${cx}" cy="${cy}" r="${(R * 0.2).toFixed(1)}"/></g>${hit}</g>`;
+    s += a.down ? `<text class="aw num" x="${cx}" y="${cy - R - 6}" text-anchor="middle" style="font-size:${sc * 4 < 54 ? 10 : 11.5}px">${fmt(a.w)}</text>` : `<text class="tx2" x="${cx}" y="${cy - R - 6}" text-anchor="middle">up</text>`;
+  });
+  // group brackets and labels
+  r.groups.forEach(g => {
+    const x0 = X(g.x0) - R, x1 = X(g.x1) + R, cx = (x0 + x1) / 2, y = gy + 10;
+    s += `<path class="brk ${g.status}" d="M${x0},${y} v6 H${x1} v-6"/>`;
+    s += `<text class="lbl ${g.status} tx" x="${cx}" y="${y + 32}" text-anchor="middle" style="font-weight:600;font-size:13px">${g.label}</text>`;
+    s += `<text class="tx num" x="${cx}" y="${y + 48}" text-anchor="middle">${fmt(g.total)} lb</text>`;
+  });
+  // axle spacing, steer to last axle, down axles only
+  const xs = ax.filter(q => q.down).map(q => q.x).sort((m, n) => m - n);
+  if (xs.length > 1) {
+    const ly = gy + 74;
+    s += `<line class="dim" x1="${X(xs[0])}" x2="${X(xs[xs.length - 1])}" y1="${ly}" y2="${ly}"/>`;
+    xs.forEach(v => { s += `<circle class="dimdot" cx="${X(v)}" cy="${ly}" r="3"/>`; });
+    for (let k = 1; k < xs.length; k++) {
+      const gap = X(xs[k]) - X(xs[k - 1]);
+      if (gap >= 30) s += `<text class="tx2 num" x="${(X(xs[k - 1]) + X(xs[k])) / 2}" y="${ly + 15}" text-anchor="middle">${fmt(Math.round((xs[k] - xs[k - 1]) * 12))}"</text>`;
+    }
+  }
+  // kingpin callouts
+  r.units.forEach((u, i) => {
+    const x = X(u.kpG), lbl = i === 0 ? '5th wheel' : 'Kingpin';
+    const ty = 18 + (i % 2) * 14;
+    s += `<line class="lead" x1="${x}" x2="${x}" y1="${ty + 8}" y2="122"/><text class="tx2 num" x="${x}" y="${ty}" text-anchor="middle">${lbl} ${fmt(u.K)} lb</text>`;
+  });
+  const H = 300;
+  $('#diagram').setAttribute('viewBox', `0 0 ${VW} ${H}`);
+  $('#diagram').innerHTML = s;
+}
+
+function renderGroups(r) {
+  $('#groups').innerHTML = r.groups.map(g => {
+    const dl = [['Axles', g.n], ['Per axle', fmt(g.per) + ' lb'], ['Limit', fmt(g.limit) + ' lb']];
+    if (g.id !== 'steer' && g.n > 1) dl.push(['Spread', fmt(g.L * 12) + ' in']);
+    if (g.rating) dl.push(['Axle rating', fmt(g.rating) + ' lb']);
+    const eg = EMP && EMP.groups.find(e => e.id === g.id); if (eg) dl.push(['Empty', fmt(eg.total) + ' lb']);
+    const stc = g.ratingOver ? 'over' : g.status;
+    return `<div class="gc ${stc}"><h3>${g.label}<span class="pill">${g.status === 'over' ? 'Over by ' + fmt(-g.margin) : g.ratingOver ? 'Over axle rating' : g.status === 'near' ? 'Near limit' : 'OK'}</span></h3><div class="big">${fmt(g.total)}<small> lb</small></div><dl>${dl.map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join('')}<dt>Margin</dt><dd>${sgn(g.margin)} lb</dd></dl></div>`;
+  }).join('') + `<div class="gc ${r.grossStatus}"><h3>Gross<span class="pill">${r.grossStatus === 'over' ? 'Over by ' + fmt(r.total - r.grossLimit) : r.grossStatus === 'near' ? 'Near limit' : 'OK'}</span></h3><div class="big">${fmt(r.total)}<small> lb</small></div><dl><dt>Limit</dt><dd>${fmt(r.grossLimit)} lb</dd><dt>Margin</dt><dd>${sgn(r.grossLimit - r.total)} lb</dd></dl></div>`;
+}
+
+function renderTable(r) {
+  const gname = { steer: 'Tractor', drive: 'Tractor', jeep: 'Jeep', trailer: 'Trailer' };
+  const E = EMP;
+  let h = `<table class="tbl"><thead><tr><th>Axle</th><th class="n">From steer</th>${E ? '<th class="n">Empty, lb</th>' : ''}<th class="n">${E ? 'Loaded, lb' : 'Load, lb'}</th>${E ? '<th class="n">Change</th>' : ''}<th class="n">Share</th></tr></thead><tbody>`;
+  r.axles.forEach(a => {
+    const e = E && E.axles.find(q => q.label === a.label), ew = e && e.down ? e.w : 0, lw = a.down ? a.w : 0;
+    h += `<tr class="${a.down ? '' : 'up'}"><td>${a.label}${a.down ? '' : ' · raised'}</td><td class="n">${fmt(a.x * 12)} in</td>${E ? `<td class="n">${fmt(ew)}</td>` : ''}<td class="n">${fmt(lw)}</td>${E ? `<td class="n">${sgn(lw - ew)}</td>` : ''}<td class="n">${a.down ? (a.w / r.total * 100).toFixed(1) + '%' : '–'}</td></tr>`;
+  });
+  h += `<tr class="grp"><td>Gross</td><td class="n"></td>${E ? `<td class="n">${fmt(E.total)}</td>` : ''}<td class="n">${fmt(r.total)}</td>${E ? `<td class="n">${sgn(r.total - E.total)}</td>` : ''}<td class="n">100%</td></tr></tbody></table>`;
+  $('#table').innerHTML = h;
+}
+
+function altBody(s2, label) {
+  const r2 = solveCombo(s2);
+  const parts = r2.groups.map(g => `${g.label} ${fmt(g.total)}${g.status === 'over' ? ' <span class="x">over by ' + fmt(-g.margin) + '</span>' : ''}`);
+  if (r2.total > r2.grossLimit) parts.push('<span class="x">gross over</span>');
+  return `<b>${label}:</b> ${parts.join(' · ')} ${r2.over ? '<span class="x">(not legal)</span>' : '<span class="g">(legal)</span>'}`;
+}
+function renderAlt() {
+  const lines = [], b = S.trailer.boost;
+  const anyUp = S.tractor.up.some(Boolean) || (S.jeep.on && S.jeep.up.some(Boolean)) || S.trailer.up.some(Boolean) || (b.has && b.installed && b.up.some(Boolean));
+  if (anyUp) {
+    const s2 = JSON.parse(JSON.stringify(S));
+    [s2.tractor, s2.jeep, s2.trailer, s2.trailer.boost].forEach(o => o.up = o.up.map(() => false));
+    lines.push(altBody(s2, 'With every axle down'));
+  }
+  if (b.has) { const s2 = JSON.parse(JSON.stringify(S)); s2.trailer.boost.installed = !b.installed; lines.push(altBody(s2, b.installed ? 'With boosters removed' : 'With boosters installed')); }
+  const el = $('#alt'); el.hidden = !lines.length; el.innerHTML = lines.join('<br>');
+}
+
+function slideData(r) {
+  const tS = S.tractor.fwSlide, rS = S.trailer.slide;
+  const range = (a, b, st) => { const o = []; if (!(b >= a)) return o; for (let v = a; v <= b + 1e-9 && o.length < 80; v += st) o.push(Math.round(v * 100) / 100); return o; };
+  const xs = tS.on ? range(+tS.min, +tS.max, 2) : [S.tractor.fw];
+  const ys = rS.on ? range(+rS.min, +rS.max, 6) : [S.trailer.kpToAxle];
+  const rows = ys.map(y => xs.map(x => {
+    const s2 = Object.assign({}, S, { tractor: Object.assign({}, S.tractor, { fw: x }), trailer: Object.assign({}, S.trailer, { kpToAxle: y }) });
+    const rr = solveCombo(s2), minM = Math.min(...rr.groups.map(g => g.margin), rr.grossLimit - rr.total, rr.bridge.worst ? (S.limits.mode === 'federal' ? rr.bridge.worst.margin : 1e9) : 1e9);
+    return { x, y, ok: !rr.over, minM, rr };
+  }));
+  return { xs, ys, rows };
+}
+
+function renderSlide(r) {
+  const card = $('#slideCard'), tS = S.tractor.fwSlide, rS = S.trailer.slide;
+  if (!tS.on && !rS.on) { card.hidden = true; return; }
+  const blankR = (tS.on && (tS.min == null || tS.max == null)) || (rS.on && (rS.min == null || rS.max == null));
+  card.hidden = false;
+  if (blankR) { card.innerHTML = '<h2>Legal slide window</h2><p class="note">Enter the slide range (from and to) to see which positions are legal.</p>'; return; }
+  const d = slideData(r), all = d.rows.flat();
+  const legal = all.filter(c => c.ok), best = legal.length ? legal.reduce((a, b) => b.minM > a.minM ? b : a) : null;
+  let h = `<h2>Legal slide window <span class="tag">${legal.length} of ${all.length} positions</span></h2>`;
+  h += `<p class="sub">${tS.on ? '5th wheel across, ' : ''}${rS.on ? 'axle slide down.' : ''} Green means every group, the gross and the bridge check pass. Click a cell to set that position.</p>`;
+  h += `<div class="scroll"><table class="sg"><thead><tr><th>${rS.on ? 'axle in' : ''}</th>${d.xs.map(x => `<th>${tS.on ? (x > 0 ? '+' : '') + x : ''}</th>`).join('')}</tr></thead><tbody>`;
+  d.rows.forEach(row => {
+    h += `<tr><th>${rS.on ? fmt(row[0].y) : ''}</th>` + row.map(c => {
+      const cur = Math.abs(c.x - S.tractor.fw) < 1e-6 && Math.abs(c.y - S.trailer.kpToAxle) < 1e-6;
+      const tip = `5th wheel ${c.x} in, axles ${fmt(c.y)} in: ` + c.rr.groups.map(g => g.label + ' ' + fmt(g.total)).join(', ') + (c.ok ? ' (legal)' : ' (not legal)');
+      return `<td><button class="cell${c.ok ? ' ok' : ''}${cur ? ' cur' : ''}${best === c ? ' best' : ''}" data-act="slide" data-x="${c.x}" data-y="${c.y}" title="${tip}" aria-label="${tip}">${c.ok ? '✓' : '✕'}</button></td>`;
+    }).join('') + '</tr>';
+  });
+  h += `</tbody></table></div>`;
+  h += best ? `<p class="note">Most margin: ${tS.on ? '5th wheel ' + (best.x > 0 ? '+' : '') + best.x + ' in' : ''}${tS.on && rS.on ? ', ' : ''}${rS.on ? 'axles ' + fmt(best.y) + ' in' : ''}, tightest limit leaves ${fmt(best.minM)} lb. Outlined cell is the current setting.</p>` : `<p class="note">No position in this range is legal with the current load. Move the load, raise or lower axles, change the boosters, or widen the range.</p>`;
+  card.innerHTML = h;
+}
+
+function loadFit() {
+  const tr = S.trailer, items = tr.cargo.filter(c => +c.w > 0);
+  if (!items.length || items.some(c => c.x === null || c.x === undefined || c.x === '')) return null;
+  const Wt = items.reduce((a, c) => a + +c.w, 0), cg = items.reduce((a, c) => a + c.w * c.x, 0) / Wt, half = c => (+c.len || 0) / 2;
+  const deck = tr.overall > 0 ? tr.overall - (+tr.kpFront || 0) : null;
+  const minA = Math.min(...items.map(c => c.x - half(c))), maxB = Math.max(...items.map(c => c.x + half(c)));
+  let lo = -minA, hi = (deck != null ? deck : 120 + (+tr.kpToAxle || 0)) - maxB;
+  if (!(hi >= lo)) { lo = -60; hi = 60; }
+  lo = Math.min(lo, 0); hi = Math.max(hi, 0);
+  const step = Math.max(2, Math.ceil((hi - lo) / 150 / 2) * 2), cells = [];
+  for (let d = Math.ceil(lo / step) * step; d <= hi + 1e-9; d += step) {
+    const s2 = JSON.parse(JSON.stringify(S)); s2.trailer.cargo.forEach(c => { if (+c.w > 0) c.x = +c.x + d; });
+    const r2 = solveCombo(s2); cells.push({ d, c: cg + d, ok: !r2.over && !r2.units.some(u => u.K < 0) });
+  }
+  return { cells, cg, step };
+}
+function renderFit() {
+  const el = $('#fitCard'), f = loadFit();
+  if (!f || !f.cells.length) { el.hidden = true; return; }
+  el.hidden = false;
+  const runs = []; let cur = null;
+  f.cells.forEach(c => { if (c.ok) { if (!cur) { cur = { a: c.c, b: c.c }; runs.push(cur); } cur.b = c.c; } else cur = null; });
+  const near = f.cells.reduce((a, c) => Math.abs(c.d) < Math.abs(a.d) ? c : a, f.cells[0]);
+  let h = `<h2>Where the load can go <span class="tag">${runs.length ? runs.length + (runs.length > 1 ? ' legal ranges' : ' legal range') : 'no legal position'}</span></h2>`;
+  h += `<p class="sub">Slides the whole load forward or back along the deck and checks every group, the gross and the bridge formula. Green is legal. Click a spot to move the load there. Outlined is where it sits now.</p>`;
+  h += `<div class="fit" role="group" aria-label="Load positions">${f.cells.map(c => `<button type="button" class="${c.ok ? 'ok' : ''}${c === near ? ' cur' : ''}" data-act="shiftload" data-d="${c.d}" title="Load center ${fmt(c.c)} in from kingpin: ${c.ok ? 'legal' : 'not legal'}" aria-label="Load center ${fmt(c.c)} in from kingpin, ${c.ok ? 'legal' : 'not legal'}"></button>`).join('')}</div>`;
+  h += `<p class="note">Combined load center, in from the kingpin: ${fmt(f.cells[0].c)} (front) to ${fmt(f.cells[f.cells.length - 1].c)} (rear). Now at ${fmt(f.cg)}.${runs.length ? ' Legal from ' + runs.map(q => q.a === q.b ? fmt(q.a) : fmt(q.a) + ' to ' + fmt(q.b)).join(' and from ') + ' in.' : ' Nothing in this range is legal with the current load, so change the load or the axles.'}</p>`;
+  el.innerHTML = h;
+}
+function renderBridge(r) {
+  const el = $('#bridgeCard');
+  if (S.limits.mode !== 'federal') { el.hidden = true; return; }
+  const dn = r.bridge.dn, runs = [];
+  for (let i = 0; i < dn.length; i++) { let sum = 0; for (let j = i; j < dn.length; j++) { sum += dn[j].w; if (j === i) continue; const L = dn[j].x - dn[i].x, allow = allowedSpan(L, j - i + 1, S.limits); runs.push({ a: dn[i].label, b: dn[j].label, N: j - i + 1, L, allow, sum, m: allow - sum }); } }
+  runs.sort((a, b) => a.m - b.m);
+  const top = runs.slice(0, 6);
+  if (!top.length) { el.hidden = true; return; }
+  el.hidden = false;
+  el.innerHTML = `<h2>Bridge formula <span class="tag">tightest 6 runs</span></h2><p class="sub">Every run of axles in a row is checked: W = 500 × (L·N ÷ (N−1) + 12N + 36), rounded to 500, capped at 34,000 lb for a tandem at 96 in or less and 80,000 lb overall. These are the six with the least room.</p><div class="scroll"><table class="tbl"><thead><tr><th>Axles</th><th class="n">Count</th><th class="n">Spread</th><th class="n">Allowed</th><th class="n">Carrying</th><th class="n">Margin</th></tr></thead><tbody>${top.map(q => `<tr${q.m < -0.5 ? ' style="color:var(--bad);font-weight:600"' : ''}><td>${q.a} to ${q.b}</td><td class="n">${q.N}</td><td class="n">${fmt(q.L * 12)} in</td><td class="n">${fmt(q.allow)}</td><td class="n">${fmt(q.sum)}</td><td class="n">${sgn(q.m)}</td></tr>`).join('')}</tbody></table></div>`;
+}
+function ftIn2(v) { const n = Math.round(Math.abs(v)), sg = v < 0 ? '-' : ''; return sg + Math.floor(n / 12) + "'" + (n % 12) + '"'; }
+function paintFt() {
+  document.querySelectorAll('#results input[data-bind]').forEach(el => {
+    if (el.type !== 'number' && !el.dataset.len) return;
+    const box = el.closest('.in'), em = box && box.querySelector('em'), unit = el.dataset.len ? 'in' : em ? em.textContent : '';
+    const isGap = /gaps\./.test(el.id), isLen = !!el.dataset.len;
+    if ((unit === 'in' || isGap) && !isLen) {
+      const lab = el.closest('label'), sp = lab && lab.firstElementChild;
+      if (sp) { let t = sp.querySelector('i.ft'); if (!t) { t = document.createElement('i'); t.className = 'ft'; sp.appendChild(t); } const v = parseFloat(el.value); t.textContent = isFinite(v) && Math.abs(v) >= 12 ? ' \u00b7 ' + ftIn2(v) : ''; }
+    }
+    if (box && !box.querySelector('.nud') && (unit === 'in' || unit === 'lb') && !el.closest('.gaps')) {
+      const mk = d => { const b = document.createElement('button'); b.type = 'button'; b.className = 'nud'; b.dataset.d = d; b.textContent = d < 0 ? '\u2212' : '+'; b.setAttribute('aria-label', (d < 0 ? 'Decrease ' : 'Increase ') + 'by ' + (unit === 'lb' ? '100 lb' : '1 in')); b.tabIndex = -1; return b; };
+      el.after(mk(-1), mk(1));
+    }
+  });
+  markFields(); paintCtx();
+}
+function requiredIds() {
+  const t = S.tractor, j = S.jeep, tr = S.trailer, b = tr.boost, ids = ['tractor.steerCurb', 'tractor.driveCurb', 'tractor.fw'];
+  for (let i = 0; i < t.driveN; i++) ids.push('tractor.gaps.' + i);
+  if (j.on) { ids.push('jeep.tareR', 'jeep.kpToAxle', 'jeep.coupling'); for (let i = 0; i < j.n - 1; i++) ids.push('jeep.gaps.' + i); }
+  ids.push('trailer.tareR', 'trailer.kpToAxle'); for (let i = 0; i < tr.n - 1; i++) ids.push('trailer.gaps.' + i);
+  if (b.has && b.installed) { ids.push('trailer.boost.tare'); for (let i = 0; i < b.n; i++) ids.push('trailer.boost.gaps.' + i); }
+  return ids;
+}
+function markFields() {
+  const req = new Set(requiredIds());
+  document.querySelectorAll('#results input[data-bind]').forEach(el => {
+    const box = el.closest('.in'); if (!box) return;
+    const empty = el.value === '', v = el.dataset.len ? parseLen(el.value) : parseFloat(el.value);
+    box.classList.toggle('need', empty && req.has(el.id));
+    box.classList.toggle('bad', !empty && (v === null || ((el.type === 'number' || el.dataset.len) && v < 0)) && !/^(tractor\.fw|tractor\.fwSlide|trailer\.slide)/.test(el.id));
+  });
+}
+function paintCtx() {
+  const el = document.getElementById('ctx'); if (!el) return;
+  const type = (TT[S.trailer.type] || {}).label || 'Trailer';
+  const rule = S.limits.mode === 'custom' ? 'Custom per axle' : 'Federal bridge formula';
+  el.innerHTML = `<span class="cx">${SAVE_TRUCK ? 'Truck <b>' + esc(SAVE_TRUCK) + '</b>' : 'No truck number'}</span><span class="cx"><b>${esc(type)}</b></span><span class="cx">${rule}</span>`;
+}
+function nudgeStep(btn, big) {
+  const el = btn.parentElement.querySelector('input'); if (!el) return;
+  const unit = (btn.parentElement.querySelector('em') || {}).textContent, base = unit === 'lb' ? 100 : 1;
+  const d = +btn.dataset.d * base * (big ? (unit === 'lb' ? 10 : 6) : 1);
+  if (el.dataset.len) { const q = parseLen(el.value); el.value = fmtLen((typeof q === 'number' ? q : 0) + d); }
+  else el.value = String(Math.round(((parseFloat(el.value) || 0) + d) * 10) / 10);
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+}
+let NUD_T = null, NUD_I = null;
+function nudStop() { clearTimeout(NUD_T); clearInterval(NUD_I); NUD_T = NUD_I = null; }
+document.addEventListener('pointerdown', e => {
+  const b = e.target.closest && e.target.closest('.nud'); if (!b) return;
+  e.preventDefault(); nudgeStep(b, e.shiftKey); nudStop();
+  NUD_T = setTimeout(() => { NUD_I = setInterval(() => nudgeStep(b, e.shiftKey), 70); }, 420);
+});
+['pointerup', 'pointercancel', 'pointerleave', 'blur'].forEach(ev => window.addEventListener(ev, nudStop, true));
+document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('.nud'); if (b && e.detail === 0) nudgeStep(b, false); });
+
+function permitRows(r) {
+  const fs = ftState(S), tr = fs.trailer, t = fs.tractor, n0 = v => fmt(Math.round(v * 12)) + ' in';
+  const dn = r.axles.filter(a => a.down), rows = [];
+  const parts = [(1 + S.tractor.driveN) + '-axle tractor']; if (S.jeep.on) parts.push(S.jeep.n + '-axle jeep'); parts.push(S.trailer.n + '-axle ' + ((TT[S.trailer.type] || {}).label || 'trailer').toLowerCase()); if (S.trailer.boost.has && S.trailer.boost.installed) parts.push(S.trailer.boost.n + ' boosters');
+  rows.push(['Configuration', parts.join(', ')]);
+  rows.push(['Gross weight', fmt(r.total) + ' lb']);
+  rows.push(['Axle weights', dn.map(a => (a.label || '') + ' ' + fmt(a.w) + ' lb').join(' · ')]);
+  if (dn.length > 1) {
+    const sp = []; for (let i = 1; i < dn.length; i++) sp.push(Math.round((dn[i].x - dn[i - 1].x) * 12));
+    rows.push(['Axle spacings', sp.map(v => fmt(v) + ' in').join(' · ') + ' (axles on the ground, front to back)']);
+    rows.push(['First to last axle', n0(dn[dn.length - 1].x - dn[0].x)]);
+  }
+  rows.push(['Group weights', r.groups.map(g => g.label + ' ' + fmt(g.total) + ' lb').join(' · ')]);
+  const up = r.axles.filter(a => !a.down).map(a => a.label); if (up.length) rows.push(['Raised axles', up.join(', ')]);
+  const last = r.units[r.units.length - 1], end = last.kpG + deckLen(tr);
+  if (tr.kpToAxle > 0) rows.push(['Kingpin to center of axles', n0(tr.kpToAxle)]);
+  if (tr.overall > 0) {
+    rows.push(['Trailer length', n0(tr.overall)]);
+    rows.push(['Steer axle to rear of trailer', n0(end)]);
+    rows.push(['Overall length (est.)', n0(end + 3) + ' (assumes the bumper is 36 in ahead of the steer axle, measure to confirm)']);
+  }
+  const items = tr.cargo.filter(c => +c.w > 0 && +c.len > 0);
+  if (items.length && tr.overall > 0) {
+    const a = Math.min(...items.map(c => c.x - c.len / 2)), b = Math.max(...items.map(c => c.x + c.len / 2)), dl = deckLen(tr);
+    rows.push(['Load length', n0(b - a)]);
+    rows.push(['Load overhang', 'front ' + n0(Math.max(0, -a)) + ' · rear ' + n0(Math.max(0, b - dl))]);
+  }
+  const cw = tr.cargo.reduce((q, c) => q + (+c.w || 0), 0); if (cw) rows.push(['Load weight', fmt(cw) + ' lb']);
+  return rows;
+}
+function renderPermit(r) {
+  const el = $('#permitCard'); if (!el) return;
+  const rows = permitRows(r);
+  el.innerHTML = `<details class="card"${PERMIT_OPEN ? ' open' : ''} id="permitBox"><summary>Permit summary</summary><p class="note">The numbers permit forms ask for, in the usual order.</p><dl class="pdl">${rows.map(([a, c]) => `<dt>${esc(a)}</dt><dd>${esc(c)}</dd>`).join('')}</dl><div class="row"><button class="btn ghost sm" data-act="copypermit">Copy as text</button></div></details>`;
+}
+let PERMIT_OPEN = false;
+document.addEventListener('toggle', e => { if (e.target && e.target.id === 'permitBox') PERMIT_OPEN = e.target.open; }, true);
+function printHead() {
+  const t = S.tractor, j = S.jeep, tr = S.trailer, b = tr.boost, type = (TT[tr.type] || {}).label || 'Trailer', n = v => (v === null || v === undefined || v === '') ? '-' : fmt(+v);
+  const rows = [['Tractor', `${1 + t.driveN} axles, steer empty ${n(t.steerCurb)} lb, rear empty ${n(t.driveCurb)} lb, 5th wheel ${n(t.fw)} in from center of rear axles, spacing ${t.gaps.map(n).join(' / ')} in${t.overall ? ', overall ' + n(t.overall) + ' in' : ''}`]];
+  if (j.on) rows.push(['Jeep', `${j.n} axles, empty ${n(j.tareR)} lb, kingpin to center of axles ${n(j.kpToAxle)} in, trailer kingpin ${n(j.coupling)} in back, spacing ${j.gaps.map(n).join(' / ')} in${j.overall ? ', overall ' + n(j.overall) + ' in' : ''}`]);
+  rows.push(['Trailer', `${type}, ${tr.n} axles, empty ${n(tr.tareR)} lb, kingpin to center of axles ${n(tr.kpToAxle)} in, spacing ${tr.gaps.map(n).join(' / ')} in${tr.overall ? ', overall ' + n(tr.overall) + ' in' : ''}${tr.shape === 'low' && (+tr.lowGoose > 0 || +tr.lowDeck > 0 || +tr.lowRear > 0) ? ', gooseneck ' + n(tr.lowGoose) + ' in, deck ' + n(tr.lowDeck) + ' in, rear ' + n(tr.lowRear) + ' in' : ''}${tr.shape === 'step' && (+tr.upperLen > 0 || +tr.lowerLen > 0) ? ', upper deck ' + n(tr.upperLen) + ' in, lower deck ' + n(tr.lowerLen) + ' in' : ''}`]);
+  if (b.has) rows.push(['Boosters', `${b.installed ? b.n + ' axles installed, empty ' + n(b.tare) + ' lb' : 'removed'}`]);
+  rows.push(['Load', tr.cargo.filter(c => +c.w > 0).map(c => `${esc(c.name)} ${n(c.w)} lb centered ${n(c.x)} in from kingpin${+c.len > 0 ? ', ' + n(c.len) + ' in long' : ''}`).join('; ') || '-']);
+  if (LAST) { rows.push(['Permit data', '']); permitRows(LAST).forEach(q => rows.push(q)); }
+  const raised = [].concat(t.up.map((u, i) => u ? 'tractor drive ' + (i + 1) : ''), j.on ? j.up.map((u, i) => u ? 'jeep ' + (i + 1) : '') : [], tr.up.map((u, i) => u ? 'trailer ' + (i + 1) : ''), b.has && b.installed ? b.up.map((u, i) => u ? 'booster ' + (i + 1) : '') : []).filter(Boolean);
+  if (raised.length) rows.push(['Raised axles', raised.join(', ')]);
+  $('#printHead').innerHTML = `<h2>Axle weights${SAVE_TRUCK ? ' · Truck ' + esc(SAVE_TRUCK) : ''}</h2><div>${esc(type)} · ${new Date().toLocaleDateString()}${SAVE_NOTE ? ' · ' + esc(SAVE_NOTE) : ''}</div><dl>${rows.map(([a, c]) => `<dt>${a}</dt><dd>${c}</dd>`).join('')}</dl>`;
+}
+window.addEventListener('beforeprint', () => { try { printHead(); } catch (e) {} });
+function renderWarnings(r) {
+  const w = [];
+  { const tq = S.trailer; if (tq.shape === 'low' && +tq.overall > 0) {
+    const g = +tq.lowGoose || 0, d = +tq.lowDeck || 0, rr = +tq.lowRear || 0, ov = +tq.overall, kn = (g > 0) + (d > 0) + (rr > 0);
+    if (kn === 3 && Math.abs(g + d + rr - ov) > 1.5) w.push(['info', `Gooseneck ${fmt(g)} in plus deck ${fmt(d)} in plus rear ${fmt(rr)} in is ${fmt(g + d + rr)} in, but the overall length is ${fmt(ov)} in. Check the numbers.`]);
+    else if (kn === 2) { const miss = ov - g - d - rr; w.push([miss < -1.5 ? 'bad' : 'info', miss < -1.5 ? `Gooseneck, deck and rear add up to ${fmt(g + d + rr)} in, longer than the ${fmt(ov)} in overall length.` : `${g <= 0 ? 'Gooseneck' : d <= 0 ? 'Deck' : 'Rear'} works out to ${fmt(Math.max(0, miss))} in from the overall length.`]); }
+    else if (kn === 3 || kn === 1) { if (g + d + rr > ov + 1.5) w.push(['bad', `Those lengths add up to ${fmt(g + d + rr)} in, longer than the ${fmt(ov)} in overall length.`]); }
+    const q = lowSec(ftState(S).trailer); if (q.rise && r.axles) { const un = r.units[r.units.length - 1], ta = r.axles.filter(a => a.group === 'trailer' && a.kind !== 'boost'); if (ta.length) { const f1 = Math.min(...ta.map(a => (a.x - un.kpG) * 12)), st = (q.we + 0) * 12; if (f1 < st - 6) w.push(['info', `The first trailer axle is ${fmt(st - f1)} in ahead of the start of the rear section. The axles should sit under the raised rear.`]); } }
+  } }
+  { const tq = S.trailer; if (tq.shape === 'step' && +tq.upperLen > 0 && +tq.lowerLen > 0 && +tq.overall > 0 && Math.abs(+tq.upperLen + +tq.lowerLen - +tq.overall) > 1.5) w.push(['info', `Upper deck ${fmt(tq.upperLen)} in plus lower deck ${fmt(tq.lowerLen)} in is ${fmt(+tq.upperLen + +tq.lowerLen)} in, but the overall length is ${fmt(tq.overall)} in. Check the three numbers.`]); }
+  const kp0 = r.units[0];
+  r.units.forEach(u => { if (u.K < 0) w.push(['bad', `${u.kind === 'jeep' ? 'Jeep' : 'Trailer'} kingpin load is negative (${fmt(u.K)} lb). The load would try to lift the front of that unit. Move the load forward or add weight ahead of the axles.`]); });
+  if (r.bridge.viol.length && S.limits.mode === 'federal') {
+    const v = r.bridge.viol.slice().sort((a, b) => a.margin - b.margin)[0];
+    w.push(['bad', `Bridge formula: ${v.N} axles over ${fmt(v.L * 12)} in carry ${fmt(v.sum)} lb, allowed ${fmt(v.allow)} lb (over by ${fmt(-v.margin)}). ${r.bridge.viol.length > 1 ? r.bridge.viol.length + ' axle runs fail in total.' : ''}`]);
+  }
+  if (S.limits.mode === 'custom' && r.maxAxle > S.limits.axle) w.push(['bad', `Heaviest axle carries ${fmt(r.maxAxle)} lb against a ${fmt(S.limits.axle)} lb limit.`]);
+  if (r.kpraOver) w.push(['bad', `Kingpin to center of the rear axle group is ${fmt(r.kpra * 12)} in; the limit is ${fmt(S.limits.kpra)} in.`]);
+  r.groups.forEach(g => { if (g.ratingOver) w.push(['bad', `${g.label}: each axle carries ${fmt(g.per)} lb, above the ${fmt(g.rating)} lb axle or tire rating.`]); });
+  const steer = r.groups.find(g => g.id === 'steer');
+  if (steer && r.total > 20000 && steer.total / r.total < 0.10) w.push(['', `Steer axle carries ${(steer.total / r.total * 100).toFixed(1)}% of gross. Under about 10% can make steering and braking feel light.`]);
+  const tr = S.trailer, tu = r.units[r.units.length - 1];
+  tr.cargo.forEach(c => { const a = c.x - c.len / 2, b = c.x + c.len / 2; if (tr.overall > 0 && (a < -0.01 || b > deckLen(tr) + 0.01)) w.push(['info', `${esc(c.name)} runs past the ${fmt(deckLen(tr))} in deck length (it spans ${fmt(a)} to ${fmt(b)} in from the kingpin).`]); });
+  $('#warns').innerHTML = w.map(([c, t]) => `<div class="w ${c}">${t}</div>`).join('');
+}
+
+function summaryText(r) {
+  const L = [];
+  L.push(`Axle weights (${r.over ? 'NOT legal as entered' : 'within limits'})`);
+  r.groups.forEach(g => L.push(`${g.label}: ${fmt(g.total)} lb (${g.n} axle${g.n > 1 ? 's' : ''}, ${fmt(g.per)} each), limit ${fmt(g.limit)}, margin ${sgn(g.margin)}`));
+  L.push(`Gross: ${fmt(r.total)} lb, limit ${fmt(r.grossLimit)}, margin ${sgn(r.grossLimit - r.total)}`);
+  return L.join('\n');
+}
+
+function ensureResultsShell() {
+  if ($('#diagram')) return;
+  $('#results').innerHTML = `
+    <section class="card" id="diagramCard"><h2>Side view</h2><p class="sub">Click a wheel to raise or lower that axle. The number above each tire is what it carries.</p><div class="scroll"><svg id="diagram" class="dia" role="img" aria-label="Side view of the combination with axle loads"></svg></div><div id="rig"></div><div id="alt" class="alt" hidden></div></section>
+    <div id="form"></div>
+    <div id="warns" class="warns"></div>
+    <section class="card" id="fitCard" hidden></section>
+    <section class="card" id="groupsCard"><h2>Axle groups</h2><div id="groups" class="groups"></div></section>
+    <section class="card" id="bridgeCard" hidden></section>
+    <div id="permitCard"></div>
+    <section class="card" id="slideCard"></section>
+    <section class="card"><h2>Every axle</h2><div class="scroll" id="table"></div></section>`;
+}
+let LAST = null, EMP = null;
+function missingInputs() {
+  const t = S.tractor, j = S.jeep, tr = S.trailer, m = [];
+  const bad = v => !(+v > 0), none = v => v === null || v === undefined || v === '';
+  const gapsBad = (arr, n) => arr.slice(0, n).some(bad);
+  const tt = [];
+  if (bad(t.steerCurb)) tt.push('steer axle empty'); if (bad(t.driveCurb)) tt.push('rear axles empty'); if (none(t.fw)) tt.push('5th wheel'); if (gapsBad(t.gaps, t.driveN)) tt.push('axle spacing');
+  if (tt.length) m.push(['Tractor', tt]);
+  if (j.on) { const jj = []; if (bad(j.tareR)) jj.push('jeep axles empty'); if (bad(j.kpToAxle)) jj.push('kingpin to center of axle group'); if (bad(j.coupling)) jj.push('where the trailer kingpin sits'); if (gapsBad(j.gaps, j.n - 1)) jj.push('axle spacing'); if (jj.length) m.push(['Jeep', jj]); }
+  const rr = [];
+  if (bad(tr.tareR)) rr.push('trailer axles empty'); if (bad(tr.kpToAxle)) rr.push('kingpin to center of axle group'); if (gapsBad(tr.gaps, tr.n - 1)) rr.push('axle spacing');
+  if (tr.boost.has && tr.boost.installed && (none(tr.boost.tare) || gapsBad(tr.boost.gaps, tr.boost.n))) rr.push('booster empty weight and spacing');
+  if (rr.length) m.push(['Trailer', rr]);
+  return m;
+}
+function renderResults() {
+  ensureResultsShell();
+  const miss = missingInputs();
+  if (miss.length) {
+    $('#strip').innerHTML = `<div class="tile near"><div class="k">Waiting for your numbers</div><div class="v" style="font-size:20px">${miss.map(x => x[0]).join(', ')}</div><div class="s">Fill in the panels under the side view</div></div>`;
+    $('#diagram').innerHTML = '';
+    $('#diagram').setAttribute('viewBox', '0 0 1100 40');
+    $('#groups').innerHTML = ''; $('#table').innerHTML = ''; $('#fitCard').hidden = true; $('#bridgeCard').hidden = true; $('#permitCard').innerHTML = ''; $('#slideCard').hidden = true; $('#alt').hidden = true;
+    $('#warns').innerHTML = `<div class="empty"><h3>Start with your scaled weights</h3><p>Fill in the dashed fields in the rig under the side view. Axle loads appear as soon as these are in:</p><div class="needs">${miss.map(x => `<div><b>${x[0]}</b><span>${x[1].join(', ')}</span></div>`).join('')}</div><button class="btn ghost sm" data-act="openex">Try an example</button></div>`;
+    LAST = null;
+    try { localStorage.setItem(STORE, JSON.stringify(S)); } catch (e) {}
+    return;
+  }
+  const r = solveCombo(S); LAST = r;
+  if (S.trailer.cargo.some(c => +c.w > 0)) { const sE = JSON.parse(JSON.stringify(S)); sE.trailer.cargo = []; EMP = solveCombo(sE); } else EMP = null;
+  renderStrip(r); drawDiagram(r); renderGroups(r); renderTable(r); renderSlide(r); renderWarnings(r);
+  renderAlt(); renderFit(); renderBridge(r); renderPermit(r);
+  r.units.forEach(u => { const el = $('#eff-' + u.kind), up = (u.kind === 'jeep' ? S.jeep.up : S.trailer.up).some(Boolean); if (el) el.textContent = up ? `Load center with raised axles: ${fmt((u.xc - u.kpG) * 12)} in from the kingpin` : ''; });
+  const fe = document.querySelector('[data-fuel]'); if (fe) fe.textContent = +S.tractor.fuelGal > 0 ? fmt(+S.tractor.fuelGal * FUEL_LB) + ' lb at ' + FUEL_LB + ' lb per gallon. ' : '';
+  const un = r.units[r.units.length - 1], xcl = un.xc - un.kpG;
+  S.trailer.cargo.forEach((c, i) => { const el = document.querySelector(`[data-share="${i}"]`); if (el) el.textContent = fmt1((xcl * 12 - c.x) / (xcl * 12) * 100) + '% on kingpin'; });
+  try { localStorage.setItem(STORE, JSON.stringify(S)); } catch (e) {}
+}
+function renderAll() { normalize(); ensureResultsShell(); renderForm(); renderRig(); renderResults(); paintFt(); }
+
+/* ---------- events ---------- */
+function readEl(el) {
+  if (el.type === 'checkbox') return el.checked;
+  if (el.dataset.type === 'bool') return el.value === '1';
+  if (el.dataset.blank && el.value === '') return null;
+  if (el.dataset.len) { const q = parseLen(el.value); return q === '' ? 0 : q === null ? undefined : q; }
+  if (el.dataset.type === 'num' || el.type === 'number') { const v = parseFloat(el.value); return isNaN(v) ? 0 : v; }
+  return el.value;
+}
+function onField(e) {
+  const el = e.target, path = el.dataset && el.dataset.bind;
+  if (!path) return;
+  const isChoice = el.tagName === 'SELECT' || el.type === 'checkbox';
+  if (isChoice !== (e.type === 'change')) return;
+  const v = readEl(el);
+  if (v === undefined) { const bx = el.closest('.in'); if (bx) bx.classList.add('bad'); return; }
+  if (path === 'trailer.type') { S.trailer = trailerFrom(v); S.ref = snapGeom(S); renderAll(); return; }
+  setP(path, v);
+  if (/^(tractor\.(steerCurb|driveCurb)|jeep\.tareR|trailer\.tareR|jeep\.on)$/.test(path)) S.ref = snapGeom(S);
+  if (el.dataset.struct) { renderAll(); } else { renderResults(); paintFt(); }
+}
+$('#results').addEventListener('input', e => { const i = e.target.id; if (i === 'saveTruck') { SAVE_TRUCK = e.target.value; paintCtx(); } else if (i === 'saveNote') SAVE_NOTE = e.target.value; else if (i === 'editTruck') EDIT_T = e.target.value; else if (i === 'editNote') EDIT_N = e.target.value; else if (i === 'linkName') LINK_NAME = e.target.value; else if (i === 'linkUrl') LINK_URL = e.target.value; });
+$('#results').addEventListener('change', e => { if (e.target.id === 'pickState') { PICK_STATE = e.target.value; renderForm(); } });
+$('#results').addEventListener('input', onField);
+$('#results').addEventListener('focusout', e => { const el = e.target; if (!el || !el.dataset || !el.dataset.len) return; const q = parseLen(el.value); if (typeof q === 'number') { const t = fmtLen(q); if (el.value !== t) el.value = t; } markFields(); });
+$('#results').addEventListener('change', onField);
+$('#results').addEventListener('keydown', e => { const w = e.target.closest && e.target.closest('.wheel'); if (w && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); w.dispatchEvent(new MouseEvent('click', { bubbles: true })); } });
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  const act = b.dataset.act;
+  if (act === 'savesetup') {
+    const inp = document.getElementById('saveTruck'), nn = document.getElementById('saveNote');
+    SAVE_TRUCK = (inp ? inp.value : SAVE_TRUCK).trim(); SAVE_NOTE = (nn ? nn.value : SAVE_NOTE).trim();
+    const type = (TT[S.trailer.type] || {}).label || 'Trailer';
+    writeSetup({ id: setupKey(SAVE_TRUCK, type), truck: SAVE_TRUCK, type, at: Date.now(), note: SAVE_NOTE, state: JSON.parse(JSON.stringify(S)) });
+    toast(SAVE_TRUCK ? 'Saved truck ' + SAVE_TRUCK : 'Setup saved');
+    renderAll();
+  }
+  else if (act === 'copypermit') { if (!LAST) return; const t = permitRows(LAST).map(([a, c]) => a + ': ' + c).join('\n'); try { navigator.clipboard.writeText(t).then(() => toast('Permit summary copied'), () => toast('Copy was blocked here.', 'err')); } catch (e) { toast('Copy was blocked here.', 'err'); } }
+  else if (act === 'expsetups') {
+    const list = getSetups(); if (!list.length) { toast('Nothing saved to back up yet', 'err'); return; }
+    try { const u = URL.createObjectURL(new Blob([backupJson()], { type: 'application/json' })), a = document.createElement('a'); a.href = u; a.download = 'axle-planner-setups.json'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 2000); toast('Backup downloaded. If nothing saved, use Copy backup text.'); } catch (err) { toast('Download was blocked. Use Copy backup text.', 'err'); }
+  }
+  else if (act === 'copysetupsjson') {
+    const list = getSetups(); if (!list.length) { toast('Nothing saved to back up yet', 'err'); return; }
+    const t = backupJson(); const ok = () => toast('Backup copied. Paste it into a file or into another copy.');
+    try { navigator.clipboard.writeText(t).then(ok, () => { const ta = document.getElementById('impText'); if (ta) { ta.value = t; ta.select(); } toast('Copy was blocked. The text is in the box below, select it and copy.', 'err'); }); } catch (err) { const ta = document.getElementById('impText'); if (ta) { ta.value = t; ta.select(); } toast('Copy was blocked. The text is in the box below.', 'err'); }
+  }
+  else if (act === 'imptext') { const ta = document.getElementById('impText'); if (!ta || !ta.value.trim()) { toast('Paste a backup first', 'err'); return; } importSetups(ta.value); }
+  else if (act === 'loadsetup') { const x = getSetups().find(q => q.id === b.dataset.id); if (x) { S = JSON.parse(JSON.stringify(x.state)); SAVE_TRUCK = x.truck; SAVE_NOTE = x.note || ''; renderAll(); toast('Loaded ' + (x.truck ? 'truck ' + x.truck : 'setup')); } }
+  else if (act === 'delsetup') { removeSetup(b.dataset.id); if (EDIT_ID === b.dataset.id) EDIT_ID = null; renderAll(); toast('Setup deleted'); }
+  else if (act === 'editsetup') { const x = getSetups().find(q => q.id === b.dataset.id); if (x) { EDIT_ID = x.id; EDIT_T = x.truck; EDIT_N = x.note || ''; renderForm(); } }
+  else if (act === 'canceledit') { EDIT_ID = null; renderForm(); }
+  else if (act === 'updsetup' || act === 'copysetup') {
+    const x = getSetups().find(q => q.id === b.dataset.id); if (!x) return;
+    let truck = EDIT_T.trim(), id = setupKey(truck, x.type);
+    if (act === 'copysetup') { if (id === x.id) { truck += ' copy'; id = setupKey(truck, x.type); } writeSetup({ id, truck, type: x.type, at: Date.now(), note: EDIT_N.trim(), state: JSON.parse(JSON.stringify(x.state)) }); }
+    else { writeSetup({ id, truck, type: x.type, at: x.at, note: EDIT_N.trim(), state: x.state }); if (id !== x.id) removeSetup(x.id); }
+    EDIT_ID = null; renderAll(); toast(act === 'copysetup' ? 'Saved as a copy' : 'Setup updated');
+  }
+  else if (act === 'addlink') {
+    let u = LINK_URL.trim(); if (u && !/^https?:\/\//i.test(u)) u = 'https://' + u;
+    if (!/^https?:\/\/[^\s]+\.[^\s]+/i.test(u)) { toast('Enter a web address like https://example.gov/table.pdf', 'err'); return; }
+    MYLINKS.push({ name: LINK_NAME.trim() || u, url: u }); saveLinks(); LINK_NAME = ''; LINK_URL = ''; renderForm(); toast('Link added');
+  }
+  else if (act === 'rmlink') {
+    const u = b.dataset.u;
+    if (LINKS0.some(x => x.url === u)) { if (!HIDDEN.includes(u)) HIDDEN.push(u); saveHidden(); } else { MYLINKS = MYLINKS.filter(x => x.url !== u); saveLinks(); }
+    renderForm(); toast('Link removed');
+  }
+  else if (act === 'restorelinks') { HIDDEN = []; saveHidden(); renderForm(); toast('Oregon links restored'); }
+  else if (act === 'kpra') { S.limits.kpra = +b.dataset.v; renderAll(); }
+  else if (act === 'shiftload') { const d = +b.dataset.d; S.trailer.cargo.forEach(c => { if (+c.w > 0) c.x = Math.round((+c.x + d) * 10) / 10; }); renderAll(); }
+  else if (act === 'print') { try { printHead(); window.print(); } catch (err) {} }
+  else if (act === 'preset') { S = inState(PRESETS[b.dataset.k].build()); S.ref = snapGeom(S); renderAll(); }
+  else if (act === 'axle') {
+    const g = b.dataset.g, i = +b.dataset.i, arr = g === 'boost' ? S.trailer.boost.up : S[g].up;
+    arr[i] = !arr[i];
+    if (g !== 'boost' && arr.every(Boolean)) arr[i] = false;
+    renderAll();
+  }
+  else if (act === 'tractor') { Object.assign(S.tractor, T[b.dataset.k]()); S.ref = snapGeom(S); renderAll(); }
+  else if (act === 'addcargo') { const tr = S.trailer; tr.cargo.push({ name: 'Load ' + (tr.cargo.length + 1), w: null, x: null, len: null }); renderAll(); }
+  else if (act === 'rmcargo') { S.trailer.cargo.splice(+b.dataset.i, 1); renderAll(); }
+  else if (act === 'slide') { S.tractor.fw = parseFloat(b.dataset.x); S.trailer.kpToAxle = parseFloat(b.dataset.y); renderAll(); }
+  else if (act === 'copy') {
+    if (!LAST) { toast('Enter your numbers first, then copy the summary'); return; }
+    const txt = summaryText(LAST);
+    try { navigator.clipboard.writeText(txt).then(() => toast('Summary copied'), () => toast('Copy was blocked. Select the weights and copy them by hand.', 'err')); } catch (err) { toast('Copy was blocked. Select the weights and copy them by hand.', 'err'); }
+  }
+  else if (act === 'theme') {
+    const root = document.documentElement, cur = root.getAttribute('data-theme');
+    const dark = cur ? cur === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches, nx = dark ? 'light' : 'dark';
+    root.setAttribute('data-theme', nx); try { localStorage.setItem('axle-theme', nx); } catch (err) {}
+  }
+  else if (act === 'openex') { const d = document.querySelector('#form details'); if (d) { d.open = true; d.scrollIntoView({ block: 'center' }); } }
+});
+document.querySelector('.nav').addEventListener('click', e => {
+  const b = e.target.closest('[data-nav]'); if (!b) return;
+  const t = document.querySelector(b.dataset.nav); if (!t) return;
+  t.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+});
+if (typeof window.claude !== 'undefined') { document.documentElement.classList.add('inview'); const pb = document.getElementById('printBtn'); if (pb) pb.hidden = true; }
+renderAll();
+</script>
