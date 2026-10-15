@@ -61,7 +61,7 @@ button, input, select { font: inherit; color: inherit; }
 .cx { font-size: 12.5px; font-weight: 600; background: var(--surface); border: 1px solid var(--line); border-radius: 99px; padding: 3px 11px; color: var(--ink-2); white-space: nowrap; }
 .cx b { color: var(--ink); font-weight: 600; }
 .grow { flex: 1; }
-.acts { display: flex; gap: 6px; }
+.acts { display: flex; gap: 6px; flex-wrap: wrap; }
 .nav { display: flex; gap: 2px; flex: 1 1 100%; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
 .nav::-webkit-scrollbar { display: none; }
 .nav button { border: 0; background: transparent; color: var(--ink-2); font-weight: 600; font-size: 13px; padding: 6px 11px; border-radius: 8px; cursor: pointer; white-space: nowrap; }
@@ -177,7 +177,6 @@ svg .hub { fill: var(--shape-line); }
 svg .ok { color: var(--ok); }
 svg .near { color: var(--warn); }
 svg .over { color: var(--bad); }
-.inview [data-act="expsetups"] { display: none; }
 dl.pdl { display: grid; grid-template-columns: minmax(120px, auto) 1fr; gap: 6px 16px; margin: 10px 0 14px; font-size: 13px; }
 dl.pdl dt { color: var(--ink-2); } dl.pdl dd { margin: 0; font-variant-numeric: tabular-nums; }
 svg .dim { stroke: var(--ink-2); stroke-width: 1.2; opacity: .6; }
@@ -224,6 +223,17 @@ svg .lead { stroke: var(--ink-2); stroke-width: 1; stroke-dasharray: 3 3; }
 .w { border-radius: 12px; padding: 10px 14px; font-size: 13.5px; background: var(--warn-bg); color: var(--ink); }
 .w.bad { background: var(--bad-bg); }
 .w.info { background: var(--accent-soft); }
+.wel { margin-bottom: 14px; }
+.wel h2 { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.wel .grow { flex: 1; }
+.wel ol { margin: 10px 0 12px; padding-left: 0; list-style: none; display: grid; gap: 8px; counter-reset: st; }
+.wel li { counter-increment: st; display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: start; font-size: 14px; }
+.wel li::before { content: counter(st); width: 28px; height: 28px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-weight: 700; display: grid; place-items: center; font-size: 13px; }
+.wel .tips { font-size: 13px; color: var(--ink-2); margin: 0 0 12px; }
+.wel.min { padding: 10px 14px; display: flex; align-items: center; gap: 10px; }
+.wel.min span { font-weight: 600; }
+.linkbtn { background: none; border: 0; padding: 0; color: var(--accent); cursor: pointer; font: inherit; text-decoration: underline; }
+.w.chk { background: var(--warn-bg); border-left: 4px solid var(--warn); }
 .empty { border: 1.5px dashed var(--line); background: var(--surface); border-radius: 16px; padding: 20px 22px; }
 .empty h3 { font-size: 20px; }
 .empty p { margin: 6px 0 12px; color: var(--ink-2); }
@@ -273,8 +283,13 @@ svg .lead { stroke: var(--ink-2); stroke-width: 1; stroke-dasharray: 3 3; }
     <div class="ctx" id="ctx"></div>
     <div class="grow"></div>
     <div class="acts">
+      <button class="btn ghost sm" data-act="units" id="unitsBtn" title="Switch between pounds and feet-inches, and kilograms and meters">US units</button>
+      <button class="btn ghost sm" data-act="undo" id="undoBtn" title="Undo the last change (Ctrl+Z)" disabled>Undo</button>
+      <button class="btn ghost sm" data-act="reset" id="resetBtn" title="Clear every field and start over">Reset</button>
       <button class="btn ghost sm" data-act="copy" id="copyBtn">Copy summary</button>
       <button class="btn ghost sm" data-act="print" id="printBtn">Print sheet</button>
+      <button class="btn ghost sm" data-act="savepdf" title="Save the sheet as a PDF you can email or attach">Save PDF</button>
+      <button class="btn ghost sm" data-act="savepng" title="Save the sheet as a picture">Save image</button>
       <button class="iconbtn" id="themeBtn" type="button" data-act="theme" aria-label="Switch between light and dark" title="Light or dark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v17a8.5 8.5 0 0 0 0-17z" fill="currentColor"/></svg></button>
     </div>
     <nav class="nav" aria-label="Jump to a section">
@@ -282,11 +297,13 @@ svg .lead { stroke: var(--ink-2); stroke-width: 1; stroke-dasharray: 3 3; }
     </nav>
   </header>
   <div id="printHead" class="printonly ph"></div>
+  <div id="welcome"></div>
   <div id="strip" class="strip" aria-live="polite"></div>
   <div class="layout">
     <div id="results" class="col"></div>
   </div>
-  <p class="foot">Planning aid only. Weights are static and assume axles in a group share load equally. Enter scaled tare weights where you have them; the preset tares are typical values. Check actual limits, permits and kingpin rules with the states you run through, and confirm loaded weights on a scale.</p>
+  <div id="changes"></div>
+  <p class="foot"><button class="linkbtn" data-act="welcomefull">Show the start guide</button> · <button class="linkbtn" data-act="changes" id="verBtn">Version</button> · Planning aid only. Weights are static and assume axles in a group share load equally. Enter scaled tare weights where you have them; the preset tares are typical values. Check actual limits, permits and kingpin rules with the states you run through, and confirm loaded weights on a scale.</p>
 </div>
 
 <script>
@@ -526,18 +543,23 @@ if (!S.ref) S.ref = snapGeom(S);
 
 /* ---------- helpers ---------- */
 const $ = (q, el = document) => el.querySelector(q);
-const fmt = n => Math.round(n).toLocaleString('en-US');
+const fmtL = n => Math.round(n).toLocaleString('en-US');
+const fmt = n => Math.round(METRIC ? n * KG : n).toLocaleString('en-US');
 const fmt1 = n => (Math.round(n * 10) / 10).toFixed(1);
 const sgn = n => (n >= 0 ? '+' : '−') + fmt(Math.abs(n));
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 function getP(path) { return path.split('.').reduce((o, k) => o[k], S); }
 function setP(path, v) { const k = path.split('.'), last = k.pop(); k.reduce((o, p) => o[p], S)[last] = v; }
 
+// Units: everything is stored and solved in pounds, inches and gallons. Metric only changes what is shown and typed.
+const KG = 0.45359237, GAL = 3.785411784, M_IN = 0.0254;
+let METRIC = false; try { METRIC = localStorage.getItem('axle-units') === 'metric'; } catch (e) {}
 // Lengths are typed as feet and inches. One number is inches ("144" is 12' 0"); two numbers are feet then inches ("10 9", "26 18" is 27' 6").
 // Everything stored and solved is still in inches; the box just shows it as feet and inches once you leave it.
 function parseLen(str) {
   let t = String(str == null ? '' : str).trim().toLowerCase();
   if (t === '') return '';
+  if (METRIC) { const q = t.match(/^(-?)\s*(\d+(?:\.\d+)?|\.\d+)\s*(mm|cm|m)?$/); if (q) { const k = q[3] === 'mm' ? 0.001 : q[3] === 'cm' ? 0.01 : 1, v = (+q[2]) * k / M_IN; return q[1] === '-' ? -v : v; } }
   t = t.replace(/[’′‘`]/g, "'").replace(/[”″“]/g, '"').replace(/\b(feet|foot|ft)\b/g, "'").replace(/\b(inches|inch|in)\b/g, '"').replace(/''/g, '"');
   let m = t.match(/^(-?)\s*(\d+(?:\.\d+)?|\.\d+)\s*'\s*(?:(\d+(?:\.\d+)?|\.\d+)\s*"?)?$/), v;
   if (m) v = (+m[2]) * 12 + (+(m[3] || 0));
@@ -548,6 +570,7 @@ function parseLen(str) {
 }
 function fmtLen(v) {
   if (v === null || v === undefined || v === '' || isNaN(+v)) return '';
+  if (METRIC) { const m = Math.round(Math.abs(+v) * M_IN * 1000) / 1000; return (v < 0 && m ? '-' : '') + String(m) + ' m'; }
   const sg = v < 0 ? '-' : '', tot = Math.round(Math.abs(+v) * 10) / 10;
   let ft = Math.floor(tot / 12), inch = Math.round((tot - ft * 12) * 10) / 10;
   if (inch >= 12) { ft += 1; inch = 0; }
@@ -557,8 +580,8 @@ const ftin = ft => { const i = Math.round(ft * 12); return Math.floor(i / 12) + 
 
 function F(label, path, o = {}) {
   const v0 = getP(path), v = (v0 === null || v0 === undefined) ? '' : v0;
-  const isLen = o.unit === 'in' && !o.text;
-  return `<label class="f${o.wide ? ' wide' : ''}"><span>${label}</span><span class="in"><input type="${o.text || isLen ? 'text' : 'number'}" ${o.text ? '' : isLen ? 'data-len="1" autocomplete="off" spellcheck="false"' : 'inputmode="decimal" step="any"'}${o.blank ? ' placeholder="enter" data-blank="1"' : ''} id="${path}" data-bind="${path}" value="${esc(isLen ? fmtLen(v) : v)}">${o.unit && !isLen ? `<em>${o.unit}</em>` : ''}</span>${o.hint ? `<small>${o.hint}</small>` : ''}</label>`;
+  const isLen = o.unit === 'in' && !o.text, isWt = o.unit === 'lb' && METRIC, isVol = o.unit === 'gal' && METRIC;
+  return `<label class="f${o.wide ? ' wide' : ''}"><span>${label}</span><span class="in"><input type="${o.text || isLen ? 'text' : 'number'}" ${o.text ? '' : isLen ? 'data-len="1" autocomplete="off" spellcheck="false"' : 'inputmode="decimal" step="any"' + (isWt ? ' data-wt="1"' : isVol ? ' data-vol="1"' : '')}${o.blank ? ' placeholder="enter" data-blank="1"' : ''} id="${path}" data-bind="${path}" value="${esc(isLen ? fmtLen(v) : isWt && v !== '' ? Math.round(v * KG) : isVol && v !== '' ? Math.round(v * GAL * 10) / 10 : v)}">${o.unit && !isLen ? `<em>${isWt ? 'kg' : isVol ? 'L' : o.unit}</em>` : ''}</span>${o.hint ? `<small>${o.hint}</small>` : ''}</label>`;
 }
 function SEL(label, path, opts, o = {}) {
   const v = getP(path), cur = o.type === 'bool' ? (v ? '1' : '0') : String(v);
@@ -571,7 +594,7 @@ function overallHint(tr) {
   let t = 'Front of trailer to rear of deck';
   if (tr.kpToAxle > 0 && tr.boost.has && tr.boost.installed && tr.boost.n > 0) {
     const f = ftState(S).trailer, mx = Math.max(...unitAxles(f).map(a => a.x)), withB = Math.max(f.overall || 0, (f.kpFront || 0) + mx + 1.5);
-    t += '. With boosters: ' + fmt(withB * 12) + ' in';
+    t += '. With boosters: ' + fmtL(withB * 12) + ' in';
   }
   return t;
 }
@@ -700,7 +723,20 @@ function importSetups(txt) {
   renderAll(); toast(n ? 'Imported ' + n + ' setup' + (n === 1 ? '' : 's') : 'No setups found in that backup', n ? '' : 'err');
 }
 document.addEventListener('change', e => { if (e.target && e.target.id === 'impFile') { const f = e.target.files && e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = () => importSetups(String(r.result)); r.onerror = () => toast('Could not read that file.', 'err'); r.readAsText(f); e.target.value = ''; } });
-function renderForm() {
+
+// Metric display: numbers that are weights already went through fmt(); here the unit words are swapped and lengths in inches shown in meters.
+function uStr(t) {
+  if (!METRIC) return t;
+  return String(t).replace(/(-?\d[\d,]*(?:\.\d+)?)\s*in\b/g, (m, n) => (parseFloat(n.replace(/,/g, '')) * M_IN).toFixed(2) + ' m').replace(/\blb\b/g, 'kg');
+}
+function applyUnits(root) {
+  if (!METRIC || !root) return;
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null), nodes = [];
+  while (w.nextNode()) { const n = w.currentNode, p = n.parentNode; if (p && /^(SCRIPT|STYLE|TEXTAREA)$/i.test(p.nodeName)) continue; nodes.push(n); }
+  nodes.forEach(n => { const t = uStr(n.nodeValue); if (t !== n.nodeValue) n.nodeValue = t; });
+}
+function renderForm() { renderForm0(); if (METRIC) applyUnits($('#form')); }
+function renderForm0() {
   const t = S.tractor, j = S.jeep, tr = S.trailer;
   let h = '';
   const list = getSetups().sort((a, b) => b.at - a.at);
@@ -719,7 +755,7 @@ function renderForm() {
     h += `<div class="cargo">${F('Item', `trailer.cargo.${i}.name`, { text: true })}${F('Weight', `trailer.cargo.${i}.w`, { unit: 'lb', blank: true })}${F('Centered at (from kingpin)', `trailer.cargo.${i}.x`, { unit: 'in', blank: true, hint: `<span data-share="${i}"></span>` })}${F('Length', `trailer.cargo.${i}.len`, { unit: 'in', blank: true })}<button class="rm" data-act="rmcargo" data-i="${i}" aria-label="Remove ${esc(c.name)}">×</button></div>`;
   });
   h += `<button class="btn ghost sm" data-act="addcargo">Add load</button>`;
-  if (tr.cargo.length > 1) h += `<p class="note">Combined load center: ${fmt(cg)} in from kingpin.</p>`;
+  if (tr.cargo.length > 1) h += `<p class="note">Combined load center: ${fmtL(cg)} in from kingpin.</p>`;
   h += `</section>`;
 
   const l = S.limits;
@@ -756,7 +792,7 @@ function renderStrip(r) {
   const b = r.bridge.worst;
   if (S.limits.mode === 'federal' && b) {
     const st = b.margin < -0.5 ? 'over' : b.margin <= 500 ? 'near' : 'ok';
-    tiles.push({ k: 'Bridge formula', v: b.sum, lim: b.allow, st, m: b.margin, sub: b.N + ' axles, ' + fmt(b.L * 12) + ' in' });
+    tiles.push({ k: 'Bridge formula', v: b.sum, lim: b.allow, st, m: b.margin, sub: b.N + ' axles, ' + fmtL(b.L * 12) + ' in' });
   } else {
     const st = statusOf(r.maxAxle, S.limits.axle);
     tiles.push({ k: 'Heaviest axle', v: r.maxAxle, lim: S.limits.axle, st, m: S.limits.axle - r.maxAxle });
@@ -835,7 +871,7 @@ function drawDiagram(r) {
     xs.forEach(v => { s += `<circle class="dimdot" cx="${X(v)}" cy="${ly}" r="3"/>`; });
     for (let k = 1; k < xs.length; k++) {
       const gap = X(xs[k]) - X(xs[k - 1]);
-      if (gap >= 30) s += `<text class="tx2 num" x="${(X(xs[k - 1]) + X(xs[k])) / 2}" y="${ly + 15}" text-anchor="middle">${fmt(Math.round((xs[k] - xs[k - 1]) * 12))}"</text>`;
+      if (gap >= 30) s += `<text class="tx2 num" x="${(X(xs[k - 1]) + X(xs[k])) / 2}" y="${ly + 15}" text-anchor="middle">${METRIC ? (Math.round((xs[k] - xs[k - 1]) * 12) * M_IN).toFixed(2) + ' m' : fmtL(Math.round((xs[k] - xs[k - 1]) * 12)) + '"'}</text>`;
     }
   }
   // kingpin callouts
@@ -852,7 +888,7 @@ function drawDiagram(r) {
 function renderGroups(r) {
   $('#groups').innerHTML = r.groups.map(g => {
     const dl = [['Axles', g.n], ['Per axle', fmt(g.per) + ' lb'], ['Limit', fmt(g.limit) + ' lb']];
-    if (g.id !== 'steer' && g.n > 1) dl.push(['Spread', fmt(g.L * 12) + ' in']);
+    if (g.id !== 'steer' && g.n > 1) dl.push(['Spread', fmtL(g.L * 12) + ' in']);
     if (g.rating) dl.push(['Axle rating', fmt(g.rating) + ' lb']);
     const eg = EMP && EMP.groups.find(e => e.id === g.id); if (eg) dl.push(['Empty', fmt(eg.total) + ' lb']);
     const stc = g.ratingOver ? 'over' : g.status;
@@ -866,7 +902,7 @@ function renderTable(r) {
   let h = `<table class="tbl"><thead><tr><th>Axle</th><th class="n">From steer</th>${E ? '<th class="n">Empty, lb</th>' : ''}<th class="n">${E ? 'Loaded, lb' : 'Load, lb'}</th>${E ? '<th class="n">Change</th>' : ''}<th class="n">Share</th></tr></thead><tbody>`;
   r.axles.forEach(a => {
     const e = E && E.axles.find(q => q.label === a.label), ew = e && e.down ? e.w : 0, lw = a.down ? a.w : 0;
-    h += `<tr class="${a.down ? '' : 'up'}"><td>${a.label}${a.down ? '' : ' · raised'}</td><td class="n">${fmt(a.x * 12)} in</td>${E ? `<td class="n">${fmt(ew)}</td>` : ''}<td class="n">${fmt(lw)}</td>${E ? `<td class="n">${sgn(lw - ew)}</td>` : ''}<td class="n">${a.down ? (a.w / r.total * 100).toFixed(1) + '%' : '–'}</td></tr>`;
+    h += `<tr class="${a.down ? '' : 'up'}"><td>${a.label}${a.down ? '' : ' · raised'}</td><td class="n">${fmtL(a.x * 12)} in</td>${E ? `<td class="n">${fmt(ew)}</td>` : ''}<td class="n">${fmt(lw)}</td>${E ? `<td class="n">${sgn(lw - ew)}</td>` : ''}<td class="n">${a.down ? (a.w / r.total * 100).toFixed(1) + '%' : '–'}</td></tr>`;
   });
   h += `<tr class="grp"><td>Gross</td><td class="n"></td>${E ? `<td class="n">${fmt(E.total)}</td>` : ''}<td class="n">${fmt(r.total)}</td>${E ? `<td class="n">${sgn(r.total - E.total)}</td>` : ''}<td class="n">100%</td></tr></tbody></table>`;
   $('#table').innerHTML = h;
@@ -915,14 +951,14 @@ function renderSlide(r) {
   h += `<p class="sub">${tS.on ? '5th wheel across, ' : ''}${rS.on ? 'axle slide down.' : ''} Green means every group, the gross and the bridge check pass. Click a cell to set that position.</p>`;
   h += `<div class="scroll"><table class="sg"><thead><tr><th>${rS.on ? 'axle in' : ''}</th>${d.xs.map(x => `<th>${tS.on ? (x > 0 ? '+' : '') + x : ''}</th>`).join('')}</tr></thead><tbody>`;
   d.rows.forEach(row => {
-    h += `<tr><th>${rS.on ? fmt(row[0].y) : ''}</th>` + row.map(c => {
+    h += `<tr><th>${rS.on ? fmtL(row[0].y) : ''}</th>` + row.map(c => {
       const cur = Math.abs(c.x - S.tractor.fw) < 1e-6 && Math.abs(c.y - S.trailer.kpToAxle) < 1e-6;
-      const tip = `5th wheel ${c.x} in, axles ${fmt(c.y)} in: ` + c.rr.groups.map(g => g.label + ' ' + fmt(g.total)).join(', ') + (c.ok ? ' (legal)' : ' (not legal)');
+      const tip = `5th wheel ${c.x} in, axles ${fmtL(c.y)} in: ` + c.rr.groups.map(g => g.label + ' ' + fmt(g.total)).join(', ') + (c.ok ? ' (legal)' : ' (not legal)');
       return `<td><button class="cell${c.ok ? ' ok' : ''}${cur ? ' cur' : ''}${best === c ? ' best' : ''}" data-act="slide" data-x="${c.x}" data-y="${c.y}" title="${tip}" aria-label="${tip}">${c.ok ? '✓' : '✕'}</button></td>`;
     }).join('') + '</tr>';
   });
   h += `</tbody></table></div>`;
-  h += best ? `<p class="note">Most margin: ${tS.on ? '5th wheel ' + (best.x > 0 ? '+' : '') + best.x + ' in' : ''}${tS.on && rS.on ? ', ' : ''}${rS.on ? 'axles ' + fmt(best.y) + ' in' : ''}, tightest limit leaves ${fmt(best.minM)} lb. Outlined cell is the current setting.</p>` : `<p class="note">No position in this range is legal with the current load. Move the load, raise or lower axles, change the boosters, or widen the range.</p>`;
+  h += best ? `<p class="note">Most margin: ${tS.on ? '5th wheel ' + (best.x > 0 ? '+' : '') + best.x + ' in' : ''}${tS.on && rS.on ? ', ' : ''}${rS.on ? 'axles ' + fmtL(best.y) + ' in' : ''}, tightest limit leaves ${fmt(best.minM)} lb. Outlined cell is the current setting.</p>` : `<p class="note">No position in this range is legal with the current load. Move the load, raise or lower axles, change the boosters, or widen the range.</p>`;
   card.innerHTML = h;
 }
 
@@ -951,8 +987,8 @@ function renderFit() {
   const near = f.cells.reduce((a, c) => Math.abs(c.d) < Math.abs(a.d) ? c : a, f.cells[0]);
   let h = `<h2>Where the load can go <span class="tag">${runs.length ? runs.length + (runs.length > 1 ? ' legal ranges' : ' legal range') : 'no legal position'}</span></h2>`;
   h += `<p class="sub">Slides the whole load forward or back along the deck and checks every group, the gross and the bridge formula. Green is legal. Click a spot to move the load there. Outlined is where it sits now.</p>`;
-  h += `<div class="fit" role="group" aria-label="Load positions">${f.cells.map(c => `<button type="button" class="${c.ok ? 'ok' : ''}${c === near ? ' cur' : ''}" data-act="shiftload" data-d="${c.d}" title="Load center ${fmt(c.c)} in from kingpin: ${c.ok ? 'legal' : 'not legal'}" aria-label="Load center ${fmt(c.c)} in from kingpin, ${c.ok ? 'legal' : 'not legal'}"></button>`).join('')}</div>`;
-  h += `<p class="note">Combined load center, in from the kingpin: ${fmt(f.cells[0].c)} (front) to ${fmt(f.cells[f.cells.length - 1].c)} (rear). Now at ${fmt(f.cg)}.${runs.length ? ' Legal from ' + runs.map(q => q.a === q.b ? fmt(q.a) : fmt(q.a) + ' to ' + fmt(q.b)).join(' and from ') + ' in.' : ' Nothing in this range is legal with the current load, so change the load or the axles.'}</p>`;
+  h += `<div class="fit" role="group" aria-label="Load positions">${f.cells.map(c => `<button type="button" class="${c.ok ? 'ok' : ''}${c === near ? ' cur' : ''}" data-act="shiftload" data-d="${c.d}" title="Load center ${fmtL(c.c)} in from kingpin: ${c.ok ? 'legal' : 'not legal'}" aria-label="Load center ${fmtL(c.c)} in from kingpin, ${c.ok ? 'legal' : 'not legal'}"></button>`).join('')}</div>`;
+  h += `<p class="note">Combined load center from the kingpin: ${fmtL(f.cells[0].c)} in (front) to ${fmtL(f.cells[f.cells.length - 1].c)} in (rear). Now at ${fmtL(f.cg)} in.${runs.length ? ' Legal from ' + runs.map(q => q.a === q.b ? fmtL(q.a) + ' in' : fmtL(q.a) + ' in to ' + fmtL(q.b) + ' in').join(' and from ') + '.' : ' Nothing in this range is legal with the current load, so change the load or the axles.'}</p>`;
   el.innerHTML = h;
 }
 function renderBridge(r) {
@@ -964,7 +1000,7 @@ function renderBridge(r) {
   const top = runs.slice(0, 6);
   if (!top.length) { el.hidden = true; return; }
   el.hidden = false;
-  el.innerHTML = `<h2>Bridge formula <span class="tag">tightest 6 runs</span></h2><p class="sub">Every run of axles in a row is checked: W = 500 × (L·N ÷ (N−1) + 12N + 36), rounded to 500, capped at 34,000 lb for a tandem at 96 in or less and 80,000 lb overall. These are the six with the least room.</p><div class="scroll"><table class="tbl"><thead><tr><th>Axles</th><th class="n">Count</th><th class="n">Spread</th><th class="n">Allowed</th><th class="n">Carrying</th><th class="n">Margin</th></tr></thead><tbody>${top.map(q => `<tr${q.m < -0.5 ? ' style="color:var(--bad);font-weight:600"' : ''}><td>${q.a} to ${q.b}</td><td class="n">${q.N}</td><td class="n">${fmt(q.L * 12)} in</td><td class="n">${fmt(q.allow)}</td><td class="n">${fmt(q.sum)}</td><td class="n">${sgn(q.m)}</td></tr>`).join('')}</tbody></table></div>`;
+  el.innerHTML = `<h2>Bridge formula <span class="tag">tightest 6 runs</span></h2><p class="sub">Every run of axles in a row is checked: W = 500 × (L·N ÷ (N−1) + 12N + 36), rounded to 500, capped at ${fmt(34000)} lb for a tandem at ${fmtL(96)} in or less and ${fmt(80000)} lb overall. These are the six with the least room.</p><div class="scroll"><table class="tbl"><thead><tr><th>Axles</th><th class="n">Count</th><th class="n">Spread</th><th class="n">Allowed</th><th class="n">Carrying</th><th class="n">Margin</th></tr></thead><tbody>${top.map(q => `<tr${q.m < -0.5 ? ' style="color:var(--bad);font-weight:600"' : ''}><td>${q.a} to ${q.b}</td><td class="n">${q.N}</td><td class="n">${fmtL(q.L * 12)} in</td><td class="n">${fmt(q.allow)}</td><td class="n">${fmt(q.sum)}</td><td class="n">${sgn(q.m)}</td></tr>`).join('')}</tbody></table></div>`;
 }
 function ftIn2(v) { const n = Math.round(Math.abs(v)), sg = v < 0 ? '-' : ''; return sg + Math.floor(n / 12) + "'" + (n % 12) + '"'; }
 function paintFt() {
@@ -976,8 +1012,8 @@ function paintFt() {
       const lab = el.closest('label'), sp = lab && lab.firstElementChild;
       if (sp) { let t = sp.querySelector('i.ft'); if (!t) { t = document.createElement('i'); t.className = 'ft'; sp.appendChild(t); } const v = parseFloat(el.value); t.textContent = isFinite(v) && Math.abs(v) >= 12 ? ' \u00b7 ' + ftIn2(v) : ''; }
     }
-    if (box && !box.querySelector('.nud') && (unit === 'in' || unit === 'lb') && !el.closest('.gaps')) {
-      const mk = d => { const b = document.createElement('button'); b.type = 'button'; b.className = 'nud'; b.dataset.d = d; b.textContent = d < 0 ? '\u2212' : '+'; b.setAttribute('aria-label', (d < 0 ? 'Decrease ' : 'Increase ') + 'by ' + (unit === 'lb' ? '100 lb' : '1 in')); b.tabIndex = -1; return b; };
+    if (box && !box.querySelector('.nud') && (unit === 'in' || unit === 'lb' || unit === 'kg') && !el.closest('.gaps')) {
+      const mk = d => { const b = document.createElement('button'); b.type = 'button'; b.className = 'nud'; b.dataset.d = d; b.textContent = d < 0 ? '\u2212' : '+'; b.setAttribute('aria-label', (d < 0 ? 'Decrease ' : 'Increase ') + 'by ' + (unit === 'lb' ? '100 lb' : unit === 'kg' ? '50 kg' : METRIC ? '1 cm' : '1 in')); b.tabIndex = -1; return b; };
       el.after(mk(-1), mk(1));
     }
   });
@@ -1008,24 +1044,25 @@ function paintCtx() {
 }
 function nudgeStep(btn, big) {
   const el = btn.parentElement.querySelector('input'); if (!el) return;
-  const unit = (btn.parentElement.querySelector('em') || {}).textContent, base = unit === 'lb' ? 100 : 1;
-  const d = +btn.dataset.d * base * (big ? (unit === 'lb' ? 10 : 6) : 1);
-  if (el.dataset.len) { const q = parseLen(el.value); el.value = fmtLen((typeof q === 'number' ? q : 0) + d); }
+  const isLen = !!el.dataset.len, unit = (btn.parentElement.querySelector('em') || {}).textContent, isW = unit === 'lb' || unit === 'kg';
+  let d = +btn.dataset.d * (isW ? (METRIC ? 50 : 100) : 1) * (big ? (isW ? 10 : 6) : 1);
+  if (isLen) { if (METRIC) d = d * 0.01 / M_IN; const q = parseLen(el.value); el.value = fmtLen((typeof q === 'number' ? q : 0) + d); }
   else el.value = String(Math.round(((parseFloat(el.value) || 0) + d) * 10) / 10);
   el.dispatchEvent(new Event('input', { bubbles: true }));
 }
 let NUD_T = null, NUD_I = null;
-function nudStop() { clearTimeout(NUD_T); clearInterval(NUD_I); NUD_T = NUD_I = null; }
+let NUD_SNAP = null;
+function nudStop() { clearTimeout(NUD_T); clearInterval(NUD_I); NUD_T = NUD_I = null; if (NUD_SNAP) { if (JSON.stringify(S) !== NUD_SNAP) pushHist(NUD_SNAP); NUD_SNAP = null; } }
 document.addEventListener('pointerdown', e => {
   const b = e.target.closest && e.target.closest('.nud'); if (!b) return;
-  e.preventDefault(); nudgeStep(b, e.shiftKey); nudStop();
+  e.preventDefault(); NUD_SNAP = JSON.stringify(S); nudgeStep(b, e.shiftKey); nudStop();
   NUD_T = setTimeout(() => { NUD_I = setInterval(() => nudgeStep(b, e.shiftKey), 70); }, 420);
 });
 ['pointerup', 'pointercancel', 'pointerleave', 'blur'].forEach(ev => window.addEventListener(ev, nudStop, true));
 document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('.nud'); if (b && e.detail === 0) nudgeStep(b, false); });
 
 function permitRows(r) {
-  const fs = ftState(S), tr = fs.trailer, t = fs.tractor, n0 = v => fmt(Math.round(v * 12)) + ' in';
+  const fs = ftState(S), tr = fs.trailer, t = fs.tractor, n0 = v => fmtL(Math.round(v * 12)) + ' in';
   const dn = r.axles.filter(a => a.down), rows = [];
   const parts = [(1 + S.tractor.driveN) + '-axle tractor']; if (S.jeep.on) parts.push(S.jeep.n + '-axle jeep'); parts.push(S.trailer.n + '-axle ' + ((TT[S.trailer.type] || {}).label || 'trailer').toLowerCase()); if (S.trailer.boost.has && S.trailer.boost.installed) parts.push(S.trailer.boost.n + ' boosters');
   rows.push(['Configuration', parts.join(', ')]);
@@ -1033,7 +1070,7 @@ function permitRows(r) {
   rows.push(['Axle weights', dn.map(a => (a.label || '') + ' ' + fmt(a.w) + ' lb').join(' · ')]);
   if (dn.length > 1) {
     const sp = []; for (let i = 1; i < dn.length; i++) sp.push(Math.round((dn[i].x - dn[i - 1].x) * 12));
-    rows.push(['Axle spacings', sp.map(v => fmt(v) + ' in').join(' · ') + ' (axles on the ground, front to back)']);
+    rows.push(['Axle spacings', sp.map(v => fmtL(v) + ' in').join(' · ') + ' (axles on the ground, front to back)']);
     rows.push(['First to last axle', n0(dn[dn.length - 1].x - dn[0].x)]);
   }
   rows.push(['Group weights', r.groups.map(g => g.label + ' ' + fmt(g.total) + ' lb').join(' · ')]);
@@ -1062,41 +1099,221 @@ function renderPermit(r) {
 let PERMIT_OPEN = false;
 document.addEventListener('toggle', e => { if (e.target && e.target.id === 'permitBox') PERMIT_OPEN = e.target.open; }, true);
 function printHead() {
-  const t = S.tractor, j = S.jeep, tr = S.trailer, b = tr.boost, type = (TT[tr.type] || {}).label || 'Trailer', n = v => (v === null || v === undefined || v === '') ? '-' : fmt(+v);
-  const rows = [['Tractor', `${1 + t.driveN} axles, steer empty ${n(t.steerCurb)} lb, rear empty ${n(t.driveCurb)} lb, 5th wheel ${n(t.fw)} in from center of rear axles, spacing ${t.gaps.map(n).join(' / ')} in${t.overall ? ', overall ' + n(t.overall) + ' in' : ''}`]];
-  if (j.on) rows.push(['Jeep', `${j.n} axles, empty ${n(j.tareR)} lb, kingpin to center of axles ${n(j.kpToAxle)} in, trailer kingpin ${n(j.coupling)} in back, spacing ${j.gaps.map(n).join(' / ')} in${j.overall ? ', overall ' + n(j.overall) + ' in' : ''}`]);
-  rows.push(['Trailer', `${type}, ${tr.n} axles, empty ${n(tr.tareR)} lb, kingpin to center of axles ${n(tr.kpToAxle)} in, spacing ${tr.gaps.map(n).join(' / ')} in${tr.overall ? ', overall ' + n(tr.overall) + ' in' : ''}${tr.shape === 'low' && (+tr.lowGoose > 0 || +tr.lowDeck > 0 || +tr.lowRear > 0) ? ', gooseneck ' + n(tr.lowGoose) + ' in, deck ' + n(tr.lowDeck) + ' in, rear ' + n(tr.lowRear) + ' in' : ''}${tr.shape === 'step' && (+tr.upperLen > 0 || +tr.lowerLen > 0) ? ', upper deck ' + n(tr.upperLen) + ' in, lower deck ' + n(tr.lowerLen) + ' in' : ''}`]);
-  if (b.has) rows.push(['Boosters', `${b.installed ? b.n + ' axles installed, empty ' + n(b.tare) + ' lb' : 'removed'}`]);
-  rows.push(['Load', tr.cargo.filter(c => +c.w > 0).map(c => `${esc(c.name)} ${n(c.w)} lb centered ${n(c.x)} in from kingpin${+c.len > 0 ? ', ' + n(c.len) + ' in long' : ''}`).join('; ') || '-']);
+  const t = S.tractor, j = S.jeep, tr = S.trailer, b = tr.boost, type = (TT[tr.type] || {}).label || 'Trailer', n = v => (v === null || v === undefined || v === '') ? '-' : fmtL(+v), nw = v => (v === null || v === undefined || v === '') ? '-' : fmt(+v);
+  const rows = [['Tractor', `${1 + t.driveN} axles, steer empty ${nw(t.steerCurb)} lb, rear empty ${nw(t.driveCurb)} lb, 5th wheel ${n(t.fw)} in from center of rear axles, spacing ${t.gaps.map(n).join(' / ')} in${t.overall ? ', overall ' + n(t.overall) + ' in' : ''}`]];
+  if (j.on) rows.push(['Jeep', `${j.n} axles, empty ${nw(j.tareR)} lb, kingpin to center of axles ${n(j.kpToAxle)} in, trailer kingpin ${n(j.coupling)} in back, spacing ${j.gaps.map(n).join(' / ')} in${j.overall ? ', overall ' + n(j.overall) + ' in' : ''}`]);
+  rows.push(['Trailer', `${type}, ${tr.n} axles, empty ${nw(tr.tareR)} lb, kingpin to center of axles ${n(tr.kpToAxle)} in, spacing ${tr.gaps.map(n).join(' / ')} in${tr.overall ? ', overall ' + n(tr.overall) + ' in' : ''}${tr.shape === 'low' && (+tr.lowGoose > 0 || +tr.lowDeck > 0 || +tr.lowRear > 0) ? ', gooseneck ' + n(tr.lowGoose) + ' in, deck ' + n(tr.lowDeck) + ' in, rear ' + n(tr.lowRear) + ' in' : ''}${tr.shape === 'step' && (+tr.upperLen > 0 || +tr.lowerLen > 0) ? ', upper deck ' + n(tr.upperLen) + ' in, lower deck ' + n(tr.lowerLen) + ' in' : ''}`]);
+  if (b.has) rows.push(['Boosters', `${b.installed ? b.n + ' axles installed, empty ' + nw(b.tare) + ' lb' : 'removed'}`]);
+  rows.push(['Load', tr.cargo.filter(c => +c.w > 0).map(c => `${esc(c.name)} ${nw(c.w)} lb centered ${n(c.x)} in from kingpin${+c.len > 0 ? ', ' + n(c.len) + ' in long' : ''}`).join('; ') || '-']);
   if (LAST) { rows.push(['Permit data', '']); permitRows(LAST).forEach(q => rows.push(q)); }
   const raised = [].concat(t.up.map((u, i) => u ? 'tractor drive ' + (i + 1) : ''), j.on ? j.up.map((u, i) => u ? 'jeep ' + (i + 1) : '') : [], tr.up.map((u, i) => u ? 'trailer ' + (i + 1) : ''), b.has && b.installed ? b.up.map((u, i) => u ? 'booster ' + (i + 1) : '') : []).filter(Boolean);
   if (raised.length) rows.push(['Raised axles', raised.join(', ')]);
   $('#printHead').innerHTML = `<h2>Axle weights${SAVE_TRUCK ? ' · Truck ' + esc(SAVE_TRUCK) : ''}</h2><div>${esc(type)} · ${new Date().toLocaleDateString()}${SAVE_NOTE ? ' · ' + esc(SAVE_NOTE) : ''}</div><dl>${rows.map(([a, c]) => `<dt>${a}</dt><dd>${c}</dd>`).join('')}</dl>`;
 }
-window.addEventListener('beforeprint', () => { try { printHead(); } catch (e) {} });
+
+/* ---------- version ---------- */
+const CHANGES = [
+  ['1.0', 'First numbered release', [
+    'Axle loads for 3 and 4 axle tractors, jeep dollies, lowboys with boosters and van, flatbed and step deck trailers, with lift axles you raise and lower by tapping a wheel.',
+    'Sliding 5th wheel and tandem, with a "where the load can go" helper that lists the legal positions.',
+    'Federal bridge formula, custom per-axle limits, kingpin to rear axle limit, axle and tire ratings, and the six tightest bridge runs.',
+    'Side view with axle spacings from the steer axle to the last trailer axle, step deck and lowboy deck lengths, and fuel weight.',
+    'Lengths typed as feet and inches ("10 9", "144", "25\' 4\\""), or in meters with the metric switch.',
+    'Saved setups by truck number and trailer type, with notes, copy, rename and backup and restore.',
+    'Permit summary, print sheet, and Save PDF or image.',
+    'Yellow checks for numbers that look like typos. Enter and Tab move through the fields, with Undo and Reset.',
+    'A start guide on first run that you can minimize or remove.',
+    'Works offline and installs on a phone when the page is opened from GitHub Pages.'
+  ]]
+];
+function renderChanges() {
+  const el = document.getElementById('changes'), vb = document.getElementById('verBtn'); if (vb) vb.textContent = 'Version ' + APP_VERSION + ' · What’s new';
+  if (!el) return;
+  el.innerHTML = CHANGES_OPEN ? `<section class="card" style="margin-top:16px"><h2>What’s new <span class="grow"></span><button class="xbtn" data-act="changes" aria-label="Close">×</button></h2>${CHANGES.map(([v, t, a]) => `<h3 style="margin:10px 0 6px">Version ${esc(v)} <span class="tag" style="font-weight:500">${esc(t)}</span></h3><ul style="margin:0 0 8px 18px;padding:0;font-size:13.5px;line-height:1.5">${a.map(x => `<li>${esc(x)}</li>`).join('')}</ul>`).join('')}</section>` : '';
+}
+let CHANGES_OPEN = false;
+/* ---------- save the sheet as a PDF or an image ---------- */
+const APP_VERSION = '1.0';
+async function saveFile(name, blob) {
+  if (typeof window.claude !== 'undefined') {
+    try {
+      const dl = await window.claude.use('downloads');
+      if (dl) { await dl.save({ filename: name, data: blob }); return 'saved'; }
+    } catch (err) { if (err && err.code === 'declined') return 'declined'; }
+  }
+  try { const u = URL.createObjectURL(blob), a = document.createElement('a'); a.href = u; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 4000); return 'saved'; } catch (err) { return 'failed'; }
+}
+function sheetData() {
+  printHead(); const ph = $('#printHead'); applyUnits(ph);
+  const rows = [...ph.querySelectorAll('dl dt')].map(dt => [dt.textContent, dt.nextElementSibling ? dt.nextElementSibling.textContent : '']);
+  const groups = [...document.querySelectorAll('#groups .gc')].map(gc => {
+    const h = gc.querySelector('h3'), pill = h && h.querySelector('.pill');
+    return { st: ['over', 'near', 'ok'].find(c => gc.classList.contains(c)) || 'ok', label: h ? h.firstChild.textContent : '', pill: pill ? pill.textContent : '', big: (gc.querySelector('.big') || {}).textContent || '', dl: [...gc.querySelectorAll('dt')].map(dt => dt.textContent + ' ' + (dt.nextElementSibling ? dt.nextElementSibling.textContent : '')) };
+  });
+  const tb = document.querySelector('#table table');
+  const table = tb ? { head: [...tb.querySelectorAll('thead th')].map(x => x.textContent), body: [...tb.querySelectorAll('tbody tr')].map(tr => ({ cls: tr.className, cells: [...tr.children].map(c => c.textContent) })) } : null;
+  const warns = [...document.querySelectorAll('#warns .w')].map(w => w.textContent);
+  return { title: (ph.querySelector('h2') || {}).textContent || 'Axle weights', sub: (ph.querySelector('div') || {}).textContent || '', rows, groups, table, warns };
+}
+async function diagramImage() {
+  const svg = document.getElementById('diagram'); if (!svg || !svg.firstChild) return null;
+  const root = document.documentElement, oldTheme = root.getAttribute('data-theme');
+  root.setAttribute('data-theme', 'light');
+  let clone;
+  try {
+    clone = svg.cloneNode(true);
+    const a = svg.querySelectorAll('*'), b = clone.querySelectorAll('*');
+    const props = ['fill', 'stroke', 'stroke-width', 'stroke-dasharray', 'stroke-linecap', 'stroke-linejoin', 'opacity', 'fill-opacity', 'stroke-opacity', 'font-size', 'font-weight', 'font-family', 'text-anchor', 'letter-spacing', 'paint-order', 'dominant-baseline', 'font-variant-numeric'];
+    a.forEach((el, i) => { const cs = getComputedStyle(el), t = b[i]; let st = ''; props.forEach(q => { st += q + ':' + cs.getPropertyValue(q) + ';'; }); t.setAttribute('style', st); t.removeAttribute('class'); });
+  } finally { if (oldTheme === null) root.removeAttribute('data-theme'); else root.setAttribute('data-theme', oldTheme); }
+  clone.querySelectorAll('title').forEach(x => x.remove());
+  const vb = (svg.getAttribute('viewBox') || '0 0 1100 300').split(/\s+/).map(Number), w = vb[2], h = vb[3];
+  clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg'); clone.setAttribute('width', w * 2); clone.setAttribute('height', h * 2);
+  const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(new XMLSerializer().serializeToString(clone));
+  const img = new Image();
+  await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
+  return { img, w, h };
+}
+function sheetLayout(ctx, d, dia, draw, PW, PH) {
+  const M = 70, CW = PW - 2 * M, INK = '#101A26', INK2 = '#566376', LINE = '#D5DAE1', COL = { ok: '#12794A', near: '#8F5B08', over: '#B3261E' };
+  const F = (px, wt) => (wt || 400) + ' ' + px + 'px "Inter", "Segoe UI", system-ui, -apple-system, Helvetica, Arial, sans-serif';
+  let y = M, page = 0;
+  const need = h => { if (y + h > PH - M) { page++; y = M; } };
+  const T = (txt, x, yy, font, color, align) => { if (!draw) return; ctx.font = font; ctx.fillStyle = color; ctx.textAlign = align || 'left'; ctx.textBaseline = 'alphabetic'; ctx.fillText(txt, x, yy + page * PH); };
+  const R = (x, yy, w, h, color) => { if (!draw) return; ctx.fillStyle = color; ctx.fillRect(x, yy + page * PH, w, h); };
+  const wrap = (txt, font, maxW) => { ctx.font = font; const out = []; String(txt).split('\n').forEach(par => { let line = ''; par.split(/\s+/).forEach(wd => { const t = line ? line + ' ' + wd : wd; if (line && ctx.measureText(t).width > maxW) { out.push(line); line = wd; } else line = t; }); out.push(line); }); return out; };
+  T(d.title, M, y + 34, F(40, 700), INK); y += 52;
+  T(d.sub, M, y + 20, F(22), INK2); y += 40;
+  R(M, y, CW, 2, LINE); y += 18;
+  d.rows.forEach(([k, v]) => {
+    if (!v) { need(44); y += 8; T(k, M, y + 24, F(22, 700), INK); y += 38; return; }
+    const lines = wrap(v, F(20), CW - 260), h = lines.length * 27 + 8; need(h);
+    T(k, M, y + 20, F(20, 600), INK2); lines.forEach((ln, i) => T(ln, M + 260, y + 20 + i * 27, F(20), INK)); y += h;
+  });
+  y += 10;
+  if (dia) { const h = dia.h * CW / dia.w; need(h + 20); if (draw) ctx.drawImage(dia.img, M, y + page * PH, CW, h); y += h + 24; }
+  need(60); T('Results', M, y + 28, F(26, 700), INK); y += 46;
+  d.groups.forEach(g => {
+    const info = g.dl.join('  ·  '), lines = wrap(info, F(19), CW - 30), h = 40 + lines.length * 25 + 12; need(h);
+    R(M, y, 8, h - 10, COL[g.st]);
+    T(g.label, M + 24, y + 28, F(24, 700), INK); T(g.big.replace(/\s+/g, ' ').trim(), M + 330, y + 28, F(24, 700), INK); T(g.pill, PW - M, y + 28, F(20, 700), COL[g.st], 'right');
+    lines.forEach((ln, i) => T(ln, M + 24, y + 58 + i * 25, F(19), INK2)); y += h;
+  });
+  if (d.table) {
+    y += 8; need(80); T('Axles', M, y + 28, F(26, 700), INK); y += 46;
+    const n = d.table.head.length, c0 = 300, cw = (CW - c0) / Math.max(1, n - 1), cx = i => i === 0 ? M : M + c0 + (i - 1) * cw + cw;
+    need(40); d.table.head.forEach((h, i) => T(h, i === 0 ? M : cx(i), y + 22, F(18, 700), INK2, i === 0 ? 'left' : 'right')); y += 32; R(M, y - 6, CW, 2, LINE);
+    d.table.body.forEach(r => { need(36); const gross = /grp/.test(r.cls), up = /\bup\b/.test(r.cls); if (gross) R(M, y - 4, CW, 2, INK2); r.cells.forEach((c, i) => T(c, i === 0 ? M : cx(i), y + 22, F(19, gross ? 700 : 400), up ? INK2 : INK, i === 0 ? 'left' : 'right')); y += 34; });
+  }
+  if (d.warns.length) {
+    y += 14; need(70); T('Notes', M, y + 28, F(26, 700), INK); y += 46;
+    d.warns.forEach(w => { const lines = wrap(w, F(19), CW - 30), h = lines.length * 25 + 10; need(h); T('•', M, y + 20, F(19), INK); lines.forEach((ln, i) => T(ln, M + 26, y + 20 + i * 25, F(19), INK)); y += h; });
+  }
+  need(40); y += 16; T('Axle Weight Planner ' + APP_VERSION + '  ·  Figures are calculated from the scaled weights and distances entered. Confirm on a scale.', M, y + 18, F(16), INK2);
+  return page + 1;
+}
+async function buildSheet() {
+  if (!LAST) return null;
+  const d = sheetData(), dia = await diagramImage(), PW = 1275, PH = 1650;
+  const probe = document.createElement('canvas').getContext('2d');
+  const pages = sheetLayout(probe, d, dia, false, PW, PH);
+  const cv = document.createElement('canvas'); cv.width = PW; cv.height = PH * pages; const ctx = cv.getContext('2d');
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height);
+  sheetLayout(ctx, d, dia, true, PW, PH);
+  return { cv, pages, PW, PH };
+}
+function makePdf(jpgs) {
+  const enc = new TextEncoder(), chunks = [], offs = []; let pos = 0;
+  const push = x => { const b = typeof x === 'string' ? enc.encode(x) : x; chunks.push(b); pos += b.length; };
+  const obj = (id, body) => { offs[id] = pos; push(id + ' 0 obj\n' + body + '\nendobj\n'); };
+  push('%PDF-1.4\n');
+  const n = jpgs.length;
+  obj(1, '<< /Type /Catalog /Pages 2 0 R >>');
+  obj(2, '<< /Type /Pages /Count ' + n + ' /Kids [' + jpgs.map((_, i) => (3 + 3 * i) + ' 0 R').join(' ') + '] >>');
+  jpgs.forEach((j, i) => {
+    const pid = 3 + 3 * i, cid = pid + 1, iid = pid + 2, cs = 'q 612 0 0 792 0 0 cm /Im0 Do Q';
+    obj(pid, '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /XObject << /Im0 ' + iid + ' 0 R >> >> /Contents ' + cid + ' 0 R >>');
+    obj(cid, '<< /Length ' + cs.length + ' >>\nstream\n' + cs + '\nendstream');
+    offs[iid] = pos; push(iid + ' 0 obj\n<< /Type /XObject /Subtype /Image /Width ' + j.w + ' /Height ' + j.h + ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' + j.data.length + ' >>\nstream\n'); push(j.data); push('\nendstream\nendobj\n');
+  });
+  const total = 3 + 3 * n, xr = pos;
+  let x = 'xref\n0 ' + total + '\n0000000000 65535 f \n';
+  for (let i = 1; i < total; i++) x += String(offs[i]).padStart(10, '0') + ' 00000 n \n';
+  push(x + 'trailer\n<< /Size ' + total + ' /Root 1 0 R >>\nstartxref\n' + xr + '\n%%EOF');
+  return new Blob(chunks, { type: 'application/pdf' });
+}
+const toBlob = (cv, type, q) => new Promise((res, rej) => cv.toBlob(b => b ? res(b) : rej(new Error('encode')), type, q));
+function sheetName(ext) { const d = new Date(), z = v => String(v).padStart(2, '0'); const tk = (SAVE_TRUCK || '').replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-|-$/g, ''); return 'axle-weights' + (tk ? '-truck-' + tk : '') + '-' + d.getFullYear() + z(d.getMonth() + 1) + z(d.getDate()) + '.' + ext; }
+async function saveSheet(kind) {
+  if (!LAST) { toast('Fill in the numbers first, then save the sheet.', 'err'); return; }
+  toast('Preparing the sheet...');
+  try {
+    const sh = await buildSheet(); if (!sh) { toast('Nothing to save yet.', 'err'); return; }
+    let blob;
+    if (kind === 'png') blob = await toBlob(sh.cv, 'image/png');
+    else {
+      const jpgs = [];
+      for (let i = 0; i < sh.pages; i++) {
+        const pg = document.createElement('canvas'); pg.width = sh.PW; pg.height = sh.PH; const c = pg.getContext('2d');
+        c.fillStyle = '#fff'; c.fillRect(0, 0, sh.PW, sh.PH); c.drawImage(sh.cv, 0, i * sh.PH, sh.PW, sh.PH, 0, 0, sh.PW, sh.PH);
+        const b = await toBlob(pg, 'image/jpeg', 0.92); jpgs.push({ data: new Uint8Array(await b.arrayBuffer()), w: sh.PW, h: sh.PH });
+      }
+      blob = makePdf(jpgs);
+    }
+    const r = await saveFile(sheetName(kind === 'png' ? 'png' : 'pdf'), blob);
+    if (r === 'saved') toast(kind === 'png' ? 'Image saved' : 'PDF saved'); else if (r === 'failed') toast('This browser blocked the download.', 'err');
+  } catch (err) { toast('Could not build the sheet: ' + (err && err.message ? err.message : 'unknown error'), 'err'); }
+}
+window.addEventListener('beforeprint', () => { try { printHead(); applyUnits(document.getElementById('printHead')); } catch (e) {} });
+
+// Numbers that look like typos. These are only nudges (yellow), nothing here blocks the math.
+function sanityChecks() {
+  const t = S.tractor, j = S.jeep, tr = S.trailer, out = [], num = v => (v === null || v === undefined || v === '') ? null : +v;
+  const I = v => fmtL(v) + ' in', W = v => fmt(v) + ' lb';
+  const gaps = (arr, n, lab, lo, hi, first) => (arr || []).slice(0, n).forEach((v, i) => { const g = num(v); if (g === null) return; const a = first && i === 0 ? first : [lo, hi]; if (g < a[0] || g > a[1]) out.push(`${lab} axle spacing ${i + 1} to ${i + 2} is ${I(g)}. Usual is ${I(a[0])} to ${I(a[1])}. Check that one.`); });
+  const fw = num(t.fw); if (fw !== null && (fw < -24 || fw > 48)) out.push(`The 5th wheel is ${I(Math.abs(fw))} ${fw > 0 ? 'ahead of' : 'behind'} the center of the rear axles. Usual is from about 12 in behind to 36 in ahead.`);
+  gaps(t.gaps, t.driveN, 'Tractor', 40, 80, [120, 260]);
+  const se = num(t.steerCurb); if (se !== null && se > 0 && (se < 6000 || se > 14000)) out.push(`Steer axle empty of ${W(se)} is unusual. Usual is about ${W(8000)} to ${W(13000)}.`);
+  const dr = num(t.driveCurb); if (dr !== null && dr > 0 && (dr < 7000 || dr > 24000)) out.push(`Rear axles empty of ${W(dr)} is unusual. Check that it is the whole rear group.`);
+  const wb = (t.gaps || []).slice(0, t.driveN).reduce((q, v) => q + (+v || 0), 0), to = num(t.overall); if (to !== null && wb > 0 && to > 0 && to < wb) out.push(`Tractor overall length ${I(to)} is shorter than the span of its axles (${I(wb)}).`);
+  if (t.fwSlide && t.fwSlide.on && num(t.fwSlide.min) !== null && num(t.fwSlide.max) !== null && +t.fwSlide.min > +t.fwSlide.max) out.push('5th wheel slide: the "from" position is ahead of the "to" position. Swap them.');
+  if (+t.fuelGal > 300) out.push(`${fmtL(+t.fuelGal)} gal of extra fuel is more than most tractors hold.`);
+  const fx = num(t.fuelX); if (fx !== null && Math.abs(fx) > 240) out.push(`The fuel tank at ${I(Math.abs(fx))} from the rear axles is outside the tractor.`);
+  gaps(tr.gaps, tr.n - 1, 'Trailer', 36, 72);
+  if (j.on) { gaps(j.gaps, j.n - 1, 'Jeep', 36, 72); const jo = num(j.overall), jk = num(j.kpToAxle); if (jo !== null && jk !== null && jo > 0 && jo < jk) out.push(`Jeep overall length ${I(jo)} is shorter than its kingpin to axle center (${I(jk)}).`); }
+  const to2 = num(tr.overall), kp = num(tr.kpToAxle), kf = +tr.kpFront || 0;
+  if (to2 !== null && to2 > 0 && (to2 < 120 || to2 > 660)) out.push(`Trailer overall length of ${I(to2)} is unusual. Check it.${!METRIC && to2 < 120 ? ' If you meant ' + fmtL(to2) + ' feet, type ' + fmtL(to2) + ' 0.' : ''}`);
+  if (to2 !== null && kp !== null && to2 > 0 && kp > to2 - kf + 12) out.push(`Kingpin to center of axles (${I(kp)}) is longer than the trailer (${I(to2 - kf)} behind the kingpin).`);
+  if (kf > 120) out.push(`Kingpin ${I(kf)} from the front of the trailer is a long way back. Check it.`);
+  const tt = num(tr.tareR); if (tt !== null && tt > 0 && (tt < 3000 || tt > 30000)) out.push(`Trailer axles empty of ${W(tt)} is unusual. Check it.`);
+  if (tr.slide && tr.slide.on && num(tr.slide.min) !== null && num(tr.slide.max) !== null && +tr.slide.min > +tr.slide.max) out.push('Tandem slide: the "from" position is past the "to" position. Swap them.');
+  if (tr.slide && tr.slide.on && to2 !== null && num(tr.slide.max) !== null && +tr.slide.max > to2) out.push('Tandem slide goes past the rear of the trailer.');
+  return out;
+}
 function renderWarnings(r) {
   const w = [];
   { const tq = S.trailer; if (tq.shape === 'low' && +tq.overall > 0) {
     const g = +tq.lowGoose || 0, d = +tq.lowDeck || 0, rr = +tq.lowRear || 0, ov = +tq.overall, kn = (g > 0) + (d > 0) + (rr > 0);
-    if (kn === 3 && Math.abs(g + d + rr - ov) > 1.5) w.push(['info', `Gooseneck ${fmt(g)} in plus deck ${fmt(d)} in plus rear ${fmt(rr)} in is ${fmt(g + d + rr)} in, but the overall length is ${fmt(ov)} in. Check the numbers.`]);
-    else if (kn === 2) { const miss = ov - g - d - rr; w.push([miss < -1.5 ? 'bad' : 'info', miss < -1.5 ? `Gooseneck, deck and rear add up to ${fmt(g + d + rr)} in, longer than the ${fmt(ov)} in overall length.` : `${g <= 0 ? 'Gooseneck' : d <= 0 ? 'Deck' : 'Rear'} works out to ${fmt(Math.max(0, miss))} in from the overall length.`]); }
-    else if (kn === 3 || kn === 1) { if (g + d + rr > ov + 1.5) w.push(['bad', `Those lengths add up to ${fmt(g + d + rr)} in, longer than the ${fmt(ov)} in overall length.`]); }
-    const q = lowSec(ftState(S).trailer); if (q.rise && r.axles) { const un = r.units[r.units.length - 1], ta = r.axles.filter(a => a.group === 'trailer' && a.kind !== 'boost'); if (ta.length) { const f1 = Math.min(...ta.map(a => (a.x - un.kpG) * 12)), st = (q.we + 0) * 12; if (f1 < st - 6) w.push(['info', `The first trailer axle is ${fmt(st - f1)} in ahead of the start of the rear section. The axles should sit under the raised rear.`]); } }
+    if (kn === 3 && Math.abs(g + d + rr - ov) > 1.5) w.push(['info', `Gooseneck ${fmtL(g)} in plus deck ${fmtL(d)} in plus rear ${fmtL(rr)} in is ${fmtL(g + d + rr)} in, but the overall length is ${fmtL(ov)} in. Check the numbers.`]);
+    else if (kn === 2) { const miss = ov - g - d - rr; w.push([miss < -1.5 ? 'bad' : 'info', miss < -1.5 ? `Gooseneck, deck and rear add up to ${fmtL(g + d + rr)} in, longer than the ${fmtL(ov)} in overall length.` : `${g <= 0 ? 'Gooseneck' : d <= 0 ? 'Deck' : 'Rear'} works out to ${fmtL(Math.max(0, miss))} in from the overall length.`]); }
+    else if (kn === 3 || kn === 1) { if (g + d + rr > ov + 1.5) w.push(['bad', `Those lengths add up to ${fmtL(g + d + rr)} in, longer than the ${fmtL(ov)} in overall length.`]); }
+    const q = lowSec(ftState(S).trailer); if (q.rise && r.axles) { const un = r.units[r.units.length - 1], ta = r.axles.filter(a => a.group === 'trailer' && a.kind !== 'boost'); if (ta.length) { const f1 = Math.min(...ta.map(a => (a.x - un.kpG) * 12)), st = (q.we + 0) * 12; if (f1 < st - 6) w.push(['info', `The first trailer axle is ${fmtL(st - f1)} in ahead of the start of the rear section. The axles should sit under the raised rear.`]); } }
   } }
-  { const tq = S.trailer; if (tq.shape === 'step' && +tq.upperLen > 0 && +tq.lowerLen > 0 && +tq.overall > 0 && Math.abs(+tq.upperLen + +tq.lowerLen - +tq.overall) > 1.5) w.push(['info', `Upper deck ${fmt(tq.upperLen)} in plus lower deck ${fmt(tq.lowerLen)} in is ${fmt(+tq.upperLen + +tq.lowerLen)} in, but the overall length is ${fmt(tq.overall)} in. Check the three numbers.`]); }
+  { const tq = S.trailer; if (tq.shape === 'step' && +tq.upperLen > 0 && +tq.lowerLen > 0 && +tq.overall > 0 && Math.abs(+tq.upperLen + +tq.lowerLen - +tq.overall) > 1.5) w.push(['info', `Upper deck ${fmtL(tq.upperLen)} in plus lower deck ${fmtL(tq.lowerLen)} in is ${fmtL(+tq.upperLen + +tq.lowerLen)} in, but the overall length is ${fmtL(tq.overall)} in. Check the three numbers.`]); }
   const kp0 = r.units[0];
   r.units.forEach(u => { if (u.K < 0) w.push(['bad', `${u.kind === 'jeep' ? 'Jeep' : 'Trailer'} kingpin load is negative (${fmt(u.K)} lb). The load would try to lift the front of that unit. Move the load forward or add weight ahead of the axles.`]); });
   if (r.bridge.viol.length && S.limits.mode === 'federal') {
     const v = r.bridge.viol.slice().sort((a, b) => a.margin - b.margin)[0];
-    w.push(['bad', `Bridge formula: ${v.N} axles over ${fmt(v.L * 12)} in carry ${fmt(v.sum)} lb, allowed ${fmt(v.allow)} lb (over by ${fmt(-v.margin)}). ${r.bridge.viol.length > 1 ? r.bridge.viol.length + ' axle runs fail in total.' : ''}`]);
+    w.push(['bad', `Bridge formula: ${v.N} axles over ${fmtL(v.L * 12)} in carry ${fmt(v.sum)} lb, allowed ${fmt(v.allow)} lb (over by ${fmt(-v.margin)}). ${r.bridge.viol.length > 1 ? r.bridge.viol.length + ' axle runs fail in total.' : ''}`]);
   }
   if (S.limits.mode === 'custom' && r.maxAxle > S.limits.axle) w.push(['bad', `Heaviest axle carries ${fmt(r.maxAxle)} lb against a ${fmt(S.limits.axle)} lb limit.`]);
-  if (r.kpraOver) w.push(['bad', `Kingpin to center of the rear axle group is ${fmt(r.kpra * 12)} in; the limit is ${fmt(S.limits.kpra)} in.`]);
+  if (r.kpraOver) w.push(['bad', `Kingpin to center of the rear axle group is ${fmtL(r.kpra * 12)} in; the limit is ${fmtL(S.limits.kpra)} in.`]);
   r.groups.forEach(g => { if (g.ratingOver) w.push(['bad', `${g.label}: each axle carries ${fmt(g.per)} lb, above the ${fmt(g.rating)} lb axle or tire rating.`]); });
   const steer = r.groups.find(g => g.id === 'steer');
   if (steer && r.total > 20000 && steer.total / r.total < 0.10) w.push(['', `Steer axle carries ${(steer.total / r.total * 100).toFixed(1)}% of gross. Under about 10% can make steering and braking feel light.`]);
   const tr = S.trailer, tu = r.units[r.units.length - 1];
-  tr.cargo.forEach(c => { const a = c.x - c.len / 2, b = c.x + c.len / 2; if (tr.overall > 0 && (a < -0.01 || b > deckLen(tr) + 0.01)) w.push(['info', `${esc(c.name)} runs past the ${fmt(deckLen(tr))} in deck length (it spans ${fmt(a)} to ${fmt(b)} in from the kingpin).`]); });
+  tr.cargo.forEach(c => { const a = c.x - c.len / 2, b = c.x + c.len / 2; if (tr.overall > 0 && (a < -0.01 || b > deckLen(tr) + 0.01)) w.push(['info', `${esc(c.name)} runs past the ${fmtL(deckLen(tr))} in deck length (it spans ${fmtL(a)} in to ${fmtL(b)} in from the kingpin).`]); });
+  try { sanityChecks().forEach(m => w.push(['chk', 'Check: ' + m])); } catch (e) {}
   $('#warns').innerHTML = w.map(([c, t]) => `<div class="w ${c}">${t}</div>`).join('');
 }
 
@@ -1105,7 +1322,7 @@ function summaryText(r) {
   L.push(`Axle weights (${r.over ? 'NOT legal as entered' : 'within limits'})`);
   r.groups.forEach(g => L.push(`${g.label}: ${fmt(g.total)} lb (${g.n} axle${g.n > 1 ? 's' : ''}, ${fmt(g.per)} each), limit ${fmt(g.limit)}, margin ${sgn(g.margin)}`));
   L.push(`Gross: ${fmt(r.total)} lb, limit ${fmt(r.grossLimit)}, margin ${sgn(r.grossLimit - r.total)}`);
-  return L.join('\n');
+  return uStr(L.join('\n'));
 }
 
 function ensureResultsShell() {
@@ -1136,7 +1353,8 @@ function missingInputs() {
   if (rr.length) m.push(['Trailer', rr]);
   return m;
 }
-function renderResults() {
+function renderResults() { renderResults0(); if (METRIC) { applyUnits($('#strip')); applyUnits($('#diagram')); applyUnits($('#groups')); applyUnits($('#table')); applyUnits($('#warns')); ['#fitCard', '#bridgeCard', '#permitCard', '#slideCard', '#alt'].forEach(q => applyUnits($(q))); } }
+function renderResults0() {
   ensureResultsShell();
   const miss = missingInputs();
   if (miss.length) {
@@ -1153,13 +1371,55 @@ function renderResults() {
   if (S.trailer.cargo.some(c => +c.w > 0)) { const sE = JSON.parse(JSON.stringify(S)); sE.trailer.cargo = []; EMP = solveCombo(sE); } else EMP = null;
   renderStrip(r); drawDiagram(r); renderGroups(r); renderTable(r); renderSlide(r); renderWarnings(r);
   renderAlt(); renderFit(); renderBridge(r); renderPermit(r);
-  r.units.forEach(u => { const el = $('#eff-' + u.kind), up = (u.kind === 'jeep' ? S.jeep.up : S.trailer.up).some(Boolean); if (el) el.textContent = up ? `Load center with raised axles: ${fmt((u.xc - u.kpG) * 12)} in from the kingpin` : ''; });
-  const fe = document.querySelector('[data-fuel]'); if (fe) fe.textContent = +S.tractor.fuelGal > 0 ? fmt(+S.tractor.fuelGal * FUEL_LB) + ' lb at ' + FUEL_LB + ' lb per gallon. ' : '';
+  r.units.forEach(u => { const el = $('#eff-' + u.kind), up = (u.kind === 'jeep' ? S.jeep.up : S.trailer.up).some(Boolean); if (el) el.textContent = up ? `Load center with raised axles: ${fmtL((u.xc - u.kpG) * 12)} in from the kingpin` : ''; });
+  const fe = document.querySelector('[data-fuel]'); if (fe) fe.textContent = +S.tractor.fuelGal > 0 ? fmt(+S.tractor.fuelGal * FUEL_LB) + ' lb at ' + (METRIC ? (FUEL_LB * KG / GAL).toFixed(2) + ' kg per liter' : FUEL_LB + ' lb per gallon') + '. ' : '';
   const un = r.units[r.units.length - 1], xcl = un.xc - un.kpG;
   S.trailer.cargo.forEach((c, i) => { const el = document.querySelector(`[data-share="${i}"]`); if (el) el.textContent = fmt1((xcl * 12 - c.x) / (xcl * 12) * 100) + '% on kingpin'; });
   try { localStorage.setItem(STORE, JSON.stringify(S)); } catch (e) {}
 }
-function renderAll() { normalize(); ensureResultsShell(); renderForm(); renderRig(); renderResults(); paintFt(); }
+function paintUnitsBtn() { const b = document.getElementById('unitsBtn'); if (b) b.textContent = METRIC ? 'Metric units' : 'US units'; }
+function renderAll() { paintUnitsBtn(); renderWelcome();  normalize(); ensureResultsShell(); renderForm(); renderRig(); renderResults(); paintFt(); applyUnits($('#results')); applyUnits($('#strip')); }
+
+
+/* ---------- undo, reset, keyboard flow ---------- */
+const HIST = []; let FOCUS_SNAP = null, RESET_T = null;
+function pushHist(js) { if (js && HIST[HIST.length - 1] !== js) { HIST.push(js); if (HIST.length > 60) HIST.shift(); } paintHist(); }
+function paintHist() { const b = document.getElementById('undoBtn'); if (b) b.disabled = !HIST.length; }
+function doUndo() { if (!HIST.length) { toast('Nothing to undo', 'err'); return; } S = JSON.parse(HIST.pop()); EDIT_ID = null; renderAll(); paintHist(); toast('Undid the last change'); }
+function fieldList() { return Array.from(document.querySelectorAll('#results input[data-bind]:not([type=checkbox]), #results select[data-bind]')).filter(el => el.offsetParent !== null && !el.disabled); }
+document.addEventListener('focusin', e => { const el = e.target; if (el && el.dataset && el.dataset.bind) { FOCUS_SNAP = JSON.stringify(S); if (el.tagName === 'INPUT' && (el.dataset.len || el.type === 'number')) setTimeout(() => { try { el.select(); } catch (x) {} }, 0); } });
+document.addEventListener('focusout', e => { const el = e.target; if (el && el.dataset && el.dataset.bind && FOCUS_SNAP) { const now = JSON.stringify(S); if (now !== FOCUS_SNAP) pushHist(FOCUS_SNAP); FOCUS_SNAP = null; } });
+document.addEventListener('keydown', e => {
+  const el = e.target;
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === 'z' || e.key === 'Z') && !(el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) { e.preventDefault(); doUndo(); return; }
+  if (e.key === 'Enter' && el && el.tagName === 'INPUT' && el.dataset && el.dataset.bind && el.type !== 'checkbox') {
+    e.preventDefault(); const list = fieldList(), i = list.indexOf(el), nx = list[i + (e.shiftKey ? -1 : 1)];
+    if (nx) nx.focus(); else el.blur();
+  }
+});
+
+
+/* ---------- first-run guide ---------- */
+const WEL_KEY = 'axle-welcome';
+let WEL = 'full';
+try { const v = localStorage.getItem(WEL_KEY); if (v === 'gone') WEL = 'gone'; else if (v === 'seen' || v === 'min') WEL = 'min'; else localStorage.setItem(WEL_KEY, 'seen'); } catch (e) {}
+function setWel(v) { WEL = v; try { localStorage.setItem(WEL_KEY, v === 'full' ? 'seen' : v); } catch (e) {} renderWelcome(); }
+function renderWelcome() {
+  const el = document.getElementById('welcome'); if (!el) return;
+  if (WEL === 'gone') { el.innerHTML = ''; return; }
+  if (WEL === 'min') { el.innerHTML = `<section class="card wel min"><span>Start guide</span><div class="grow"></div><button class="btn ghost sm" data-act="welcomefull">Show</button><button class="xbtn" data-act="welcomeclose" aria-label="Remove the start guide" title="Remove">×</button></section>`; return; }
+  el.innerHTML = `<section class="card wel"><h2>Start here <span class="grow"></span><button class="btn ghost sm" data-act="welcomemin">Minimize</button><button class="xbtn" data-act="welcomeclose" aria-label="Remove the start guide" title="Remove">×</button></h2>
+    <p class="sub" style="margin:0">Work from your scaled weights. The results update as you type.</p>
+    <ol>
+      <li><div><b>Pick the trailer.</b> Choose the type and number of axles in the Trailer panel, or load an example to see how it works.</div></li>
+      <li><div><b>Enter the empty weights</b> from the scale: steer axle, rear axles and trailer axles, weighed with the tractor and trailer coupled.</div></li>
+      <li><div><b>Enter the distances:</b> 5th wheel position, axle spacings and kingpin to the center of the axle group. Type feet and inches like <b>40 6</b>, or just inches like <b>486</b>.</div></li>
+      <li><div><b>Add the load:</b> its weight, where its center sits from the kingpin, and its length.</div></li>
+      <li><div><b>Read the result.</b> Green is legal, yellow is close to a limit, red is over. Tap a wheel in the side view to raise or lower a lift axle.</div></li>
+    </ol>
+    <p class="tips">Tab or Enter moves to the next field. Undo and Reset are at the top, along with the pounds and kilograms switch. Save a finished setup under a truck number in Saved setups.</p>
+    <div class="row"><button class="btn sm" data-act="welcomeex">Try an example</button><button class="btn ghost sm" data-act="welcomemin">Got it, minimize</button></div></section>`;
+}
 
 /* ---------- events ---------- */
 function readEl(el) {
@@ -1167,6 +1427,8 @@ function readEl(el) {
   if (el.dataset.type === 'bool') return el.value === '1';
   if (el.dataset.blank && el.value === '') return null;
   if (el.dataset.len) { const q = parseLen(el.value); return q === '' ? 0 : q === null ? undefined : q; }
+  if (el.dataset.wt) { const v = parseFloat(el.value); return isNaN(v) ? 0 : v / KG; }
+  if (el.dataset.vol) { const v = parseFloat(el.value); return isNaN(v) ? 0 : v / GAL; }
   if (el.dataset.type === 'num' || el.type === 'number') { const v = parseFloat(el.value); return isNaN(v) ? 0 : v; }
   return el.value;
 }
@@ -1191,7 +1453,17 @@ $('#results').addEventListener('keydown', e => { const w = e.target.closest && e
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-act]'); if (!b) return;
   const act = b.dataset.act;
-  if (act === 'savesetup') {
+  if (!/^(undo|reset|units|copy|print|theme|savesetup|expsetups|copysetupsjson|copypermit|editsetup|canceledit|imptext|addlink|rmlink|restorelinks|openex)$/.test(act)) { const _b = JSON.stringify(S); setTimeout(() => { if (JSON.stringify(S) !== _b) pushHist(_b); }, 0); }
+  if (act === 'welcomemin') setWel('min');
+  else if (act === 'welcomefull') setWel('full');
+  else if (act === 'welcomeclose') setWel('gone');
+  else if (act === 'welcomeex') { pushHist(JSON.stringify(S)); S = inState(PRESETS.van.build()); S.ref = snapGeom(S); renderAll(); setWel('min'); toast('Loaded the dry van example'); }
+  else if (act === 'undo') doUndo();
+  else if (act === 'reset') {
+    if (b.dataset.armed) { clearTimeout(RESET_T); delete b.dataset.armed; b.textContent = 'Reset'; pushHist(JSON.stringify(S)); S = BLANK(); S.ref = snapGeom(S); renderAll(); toast('Cleared. Undo brings it back.'); }
+    else { b.dataset.armed = '1'; b.textContent = 'Click again to clear'; RESET_T = setTimeout(() => { delete b.dataset.armed; b.textContent = 'Reset'; }, 4000); }
+  }
+  else if (act === 'savesetup') {
     const inp = document.getElementById('saveTruck'), nn = document.getElementById('saveNote');
     SAVE_TRUCK = (inp ? inp.value : SAVE_TRUCK).trim(); SAVE_NOTE = (nn ? nn.value : SAVE_NOTE).trim();
     const type = (TT[S.trailer.type] || {}).label || 'Trailer';
@@ -1199,10 +1471,11 @@ document.addEventListener('click', e => {
     toast(SAVE_TRUCK ? 'Saved truck ' + SAVE_TRUCK : 'Setup saved');
     renderAll();
   }
-  else if (act === 'copypermit') { if (!LAST) return; const t = permitRows(LAST).map(([a, c]) => a + ': ' + c).join('\n'); try { navigator.clipboard.writeText(t).then(() => toast('Permit summary copied'), () => toast('Copy was blocked here.', 'err')); } catch (e) { toast('Copy was blocked here.', 'err'); } }
+  else if (act === 'units') { METRIC = !METRIC; try { localStorage.setItem('axle-units', METRIC ? 'metric' : 'us'); } catch (e) {} paintUnitsBtn(); renderAll(); toast(METRIC ? 'Showing kilograms and meters' : 'Showing pounds and feet-inches'); }
+  else if (act === 'copypermit') { if (!LAST) return; const t = uStr(permitRows(LAST).map(([a, c]) => a + ': ' + c).join('\n')); try { navigator.clipboard.writeText(t).then(() => toast('Permit summary copied'), () => toast('Copy was blocked here.', 'err')); } catch (e) { toast('Copy was blocked here.', 'err'); } }
   else if (act === 'expsetups') {
     const list = getSetups(); if (!list.length) { toast('Nothing saved to back up yet', 'err'); return; }
-    try { const u = URL.createObjectURL(new Blob([backupJson()], { type: 'application/json' })), a = document.createElement('a'); a.href = u; a.download = 'axle-planner-setups.json'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 2000); toast('Backup downloaded. If nothing saved, use Copy backup text.'); } catch (err) { toast('Download was blocked. Use Copy backup text.', 'err'); }
+    saveFile('axle-planner-setups.json', new Blob([backupJson()], { type: 'application/json' })).then(r => toast(r === 'saved' ? 'Backup saved' : r === 'failed' ? 'Download was blocked. Use Copy backup text.' : 'Backup not saved', r === 'failed' ? 'err' : ''));
   }
   else if (act === 'copysetupsjson') {
     const list = getSetups(); if (!list.length) { toast('Nothing saved to back up yet', 'err'); return; }
@@ -1234,6 +1507,9 @@ document.addEventListener('click', e => {
   else if (act === 'restorelinks') { HIDDEN = []; saveHidden(); renderForm(); toast('Oregon links restored'); }
   else if (act === 'kpra') { S.limits.kpra = +b.dataset.v; renderAll(); }
   else if (act === 'shiftload') { const d = +b.dataset.d; S.trailer.cargo.forEach(c => { if (+c.w > 0) c.x = Math.round((+c.x + d) * 10) / 10; }); renderAll(); }
+  else if (act === 'changes') { CHANGES_OPEN = !CHANGES_OPEN; renderChanges(); if (CHANGES_OPEN) { const e2 = document.getElementById('changes'); if (e2) e2.scrollIntoView({ block: 'nearest' }); } }
+  else if (act === 'savepdf') saveSheet('pdf');
+  else if (act === 'savepng') saveSheet('png');
   else if (act === 'print') { try { printHead(); window.print(); } catch (err) {} }
   else if (act === 'preset') { S = inState(PRESETS[b.dataset.k].build()); S.ref = snapGeom(S); renderAll(); }
   else if (act === 'axle') {
@@ -1264,5 +1540,13 @@ document.querySelector('.nav').addEventListener('click', e => {
   t.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
 });
 if (typeof window.claude !== 'undefined') { document.documentElement.classList.add('inview'); const pb = document.getElementById('printBtn'); if (pb) pb.hidden = true; }
-renderAll();
+renderAll(); renderChanges();
+// Installable and offline when opened from a web address (not inside Claude, not the local program)
+if (typeof window.claude === 'undefined' && /^https?:$/.test(location.protocol) && !/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) {
+  try {
+    const lm = document.createElement('link'); lm.rel = 'manifest'; lm.href = 'manifest.webmanifest'; document.head.appendChild(lm);
+    const la = document.createElement('link'); la.rel = 'apple-touch-icon'; la.href = 'icon-180.png'; document.head.appendChild(la);
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+  } catch (err) {}
+}
 </script>
