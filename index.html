@@ -229,6 +229,14 @@ svg .lead { stroke: var(--ink-2); stroke-width: 1; stroke-dasharray: 3 3; }
 .wel ol { margin: 10px 0 12px; padding-left: 0; list-style: none; display: grid; gap: 8px; counter-reset: st; }
 .wel li { counter-increment: st; display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: start; font-size: 14px; }
 .wel li::before { content: counter(st); width: 28px; height: 28px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-weight: 700; display: grid; place-items: center; font-size: 13px; }
+.wel .opts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 12px 0 10px; }
+@media (max-width: 640px) { .wel .opts { grid-template-columns: minmax(0, 1fr); } }
+.wel .opt { text-align: left; border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 12px 14px; cursor: pointer; display: grid; gap: 3px; color: var(--ink); font: inherit; }
+.wel .opt:hover { border-color: var(--accent); background: var(--accent-soft); }
+.wel .opt b { font-size: 14.5px; }
+.wel .opt span { font-size: 12.5px; color: var(--ink-2); font-weight: 400; }
+.wel .back { margin: 4px 0 8px; }
+.wel .sel { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); margin: 10px 0; }
 .wel .tips { font-size: 13px; color: var(--ink-2); margin: 0 0 12px; }
 .wel.min { padding: 10px 14px; display: flex; align-items: center; gap: 10px; }
 .wel.min span { font-weight: 600; }
@@ -303,7 +311,7 @@ svg .lead { stroke: var(--ink-2); stroke-width: 1; stroke-dasharray: 3 3; }
     <div id="results" class="col"></div>
   </div>
   <div id="changes"></div>
-  <p class="foot"><button class="linkbtn" data-act="welcomefull">Show the start guide</button> · <button class="linkbtn" data-act="changes" id="verBtn">Version</button> · Planning aid only. Weights are static and assume axles in a group share load equally. Enter scaled tare weights where you have them; the preset tares are typical values. Check actual limits, permits and kingpin rules with the states you run through, and confirm loaded weights on a scale.</p>
+  <p class="foot"><button class="linkbtn" data-act="welcomefull">What would you like to do?</button> · <button class="linkbtn" data-act="changes" id="verBtn">Version</button> · Planning aid only. Weights are static and assume axles in a group share load equally. Enter scaled tare weights where you have them; the preset tares are typical values. Check actual limits, permits and kingpin rules with the states you run through, and confirm loaded weights on a scale.</p>
 </div>
 
 <script>
@@ -722,7 +730,7 @@ function importSetups(txt) {
   const a = Array.isArray(d) ? d : d && Array.isArray(d.setups) ? d.setups : null;
   if (!a) { toast('That is not a valid backup.', 'err'); return; }
   let n = 0;
-  a.forEach(x => { if (!x || typeof x !== 'object' || !x.state || typeof x.state !== 'object' || !(x.state.load || (x.state.tractor && x.state.trailer))) return; const truck = String(x.truck || ''), type = String(x.type || 'Trailer'); writeSetup({ id: setupKey(truck, type), truck, type, at: +x.at || Date.now(), note: String(x.note || ''), state: JSON.parse(JSON.stringify(x.state)) }); n++; });
+  a.forEach(x => { if (!x || typeof x !== 'object' || !x.state || typeof x.state !== 'object' || !(x.state.load || x.state.piece || (x.state.tractor && x.state.trailer))) return; const truck = String(x.truck || ''), type = String(x.type || 'Trailer'); writeSetup({ id: setupKey(truck, type), truck, type, at: +x.at || Date.now(), note: String(x.note || ''), state: JSON.parse(JSON.stringify(x.state)) }); n++; });
   renderAll(); toast(n ? 'Imported ' + n + ' setup' + (n === 1 ? '' : 's') : 'No setups found in that backup', n ? '' : 'err');
 }
 document.addEventListener('change', e => { if (e.target && e.target.id === 'impFile') { const f = e.target.files && e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = () => importSetups(String(r.result)); r.onerror = () => toast('Could not read that file.', 'err'); r.readAsText(f); e.target.value = ''; } });
@@ -742,7 +750,7 @@ function renderForm() { renderForm0(); if (METRIC) applyUnits($('#form')); }
 function renderForm0() {
   const t = S.tractor, j = S.jeep, tr = S.trailer;
   let h = '';
-  const list = getSetups().filter(x => !(x.state && x.state.load)).sort((a, b) => b.at - a.at);
+  const list = getSetups().filter(x => !(x.state && (x.state.load || x.state.piece))).sort((a, b) => b.at - a.at);
   h += `<section class="card" id="setupsCard"><h2>Saved setups <span class="tag">${list.length}</span></h2><p class="sub">Saves everything on this page under a truck number and the trailer type. Saving the same truck and trailer type again replaces it. ${COLL ? 'Kept in your account, so it follows you to any device.' : FILE ? 'Kept in setups.json next to the program.' : 'Kept in this browser only.'}</p>
     <div class="cargo" style="grid-template-columns:minmax(0,1fr) minmax(0,1.4fr) auto"><label class="f" style="grid-column:auto"><span>Truck number</span><span class="in"><input type="text" id="saveTruck" placeholder="e.g. 214" value="${esc(SAVE_TRUCK)}"></span></label><label class="f" style="grid-column:auto"><span>Notes (optional)</span><span class="in"><input type="text" id="saveNote" placeholder="driver, route, quirks" value="${esc(SAVE_NOTE)}"></span></label><button class="btn sm" data-act="savesetup">Save</button></div>
     ${list.length ? list.map(x => EDIT_ID === x.id ? `<div class="saved"><div class="edit"><label class="f"><span>Truck number</span><span class="in"><input type="text" id="editTruck" value="${esc(EDIT_T)}"></span></label><label class="f"><span>Notes</span><span class="in"><input type="text" id="editNote" value="${esc(EDIT_N)}"></span></label><div class="row"><button class="btn sm" data-act="updsetup" data-id="${x.id}">Update</button><button class="btn ghost sm" data-act="copysetup" data-id="${x.id}">Save as copy</button><button class="btn ghost sm" data-act="canceledit">Cancel</button></div></div></div>` : `<div class="saved"><div class="info"><strong>${esc(x.truck || 'No number')}</strong> · ${esc(x.type)}<div class="note" style="margin:0">${new Date(x.at).toLocaleDateString()}${x.note ? ' · ' + esc(x.note) : ''}</div></div><button class="btn ghost sm" data-act="loadsetup" data-id="${x.id}">Load</button><button class="btn ghost sm" data-act="editsetup" data-id="${x.id}">Edit</button><button class="xbtn" data-act="delsetup" data-id="${x.id}" aria-label="Delete ${esc(x.truck)}">×</button></div>`).join('') : '<p class="note">Nothing saved yet.</p>'}
@@ -1121,6 +1129,10 @@ function printHead() {
 
 /* ---------- version ---------- */
 const CHANGES = [
+  ['1.2', 'What would you like to do?', [
+    'The card at the top now starts you: a new combination, a saved combination, a truck, trailer or jeep on its own, or a combination picked from saved pieces.',
+    'Pieces saved from a weighed combination remember their own estimated weight, so a truck and trailer you pair later get calculated empty weights, marked as estimates until you scale them.'
+  ]],
   ['1.1', 'Saved loads', [
     'Keep loads you haul often in a list under Load. Adding one fills in the name, weight and length. They travel with the setups backup.'
   ]],
@@ -1144,7 +1156,7 @@ function renderChanges() {
 }
 let CHANGES_OPEN = false;
 /* ---------- save the sheet as a PDF or an image ---------- */
-const APP_VERSION = '1.1';
+const APP_VERSION = '1.2';
 async function saveFile(name, blob) {
   if (typeof window.claude !== 'undefined') {
     try {
@@ -1303,6 +1315,7 @@ function sanityChecks() {
 }
 function renderWarnings(r) {
   const w = [];
+  if (S.est) w.push(['', 'The empty weights were calculated from the saved truck and trailer, not scaled. Replace them with scaled weights when you have them.']);
   { const tq = S.trailer; if (tq.shape === 'low' && +tq.overall > 0) {
     const g = +tq.lowGoose || 0, d = +tq.lowDeck || 0, rr = +tq.lowRear || 0, ov = +tq.overall, kn = (g > 0) + (d > 0) + (rr > 0);
     if (kn === 3 && Math.abs(g + d + rr - ov) > 1.5) w.push(['info', `Gooseneck ${fmtL(g)} in plus deck ${fmtL(d)} in plus rear ${fmtL(rr)} in is ${fmtL(g + d + rr)} in, but the overall length is ${fmtL(ov)} in. Check the numbers.`]);
@@ -1415,21 +1428,112 @@ const WEL_KEY = 'axle-welcome';
 let WEL = 'full';
 try { const v = localStorage.getItem(WEL_KEY); if (v === 'gone') WEL = 'gone'; else if (v === 'seen' || v === 'min') WEL = 'min'; else localStorage.setItem(WEL_KEY, 'seen'); } catch (e) {}
 function setWel(v) { WEL = v; try { localStorage.setItem(WEL_KEY, v === 'full' ? 'seen' : v); } catch (e) {} renderWelcome(); }
-function renderWelcome() {
-  const el = document.getElementById('welcome'); if (!el) return;
-  if (WEL === 'gone') { el.innerHTML = ''; return; }
-  if (WEL === 'min') { el.innerHTML = `<section class="card wel min"><span>Start guide</span><div class="grow"></div><button class="btn ghost sm" data-act="welcomefull">Show</button><button class="xbtn" data-act="welcomeclose" aria-label="Remove the start guide" title="Remove">×</button></section>`; return; }
-  el.innerHTML = `<section class="card wel"><h2>Start here <span class="grow"></span><button class="btn ghost sm" data-act="welcomemin">Minimize</button><button class="xbtn" data-act="welcomeclose" aria-label="Remove the start guide" title="Remove">×</button></h2>
-    <p class="sub" style="margin:0">Work from your scaled weights. The results update as you type.</p>
-    <ol>
+
+/* ---------- pieces: a truck, a trailer or a jeep saved on its own ---------- */
+const PIECE_LABEL = { tractor: 'Truck', trailer: 'Trailer', jeep: 'Jeep' };
+let WVIEW = '', WNAME = '';
+document.addEventListener('input', e => { if (e.target && e.target.id === 'wName') WNAME = e.target.value; });
+const getPieces = k => getSetups().filter(x => x.state && x.state.piece === k).sort((a, b) => String(a.truck).localeCompare(String(b.truck)));
+const clampF = v => Math.min(0.85, Math.max(0, (+v || 0) / 100));
+// What a unit weighs on its own, backed out of the coupled scale weights. Only possible when every number it needs is in.
+function aloneWeights() {
+  const miss = requiredIds().filter(id => { const v = getP(id); return v === null || v === undefined || v === ''; });
+  if (miss.length) return null;
+  const rs = resolve(ftState(S));
+  const a = { steer: rs.tractor.steerCurb, drive: rs.tractor.driveCurb, tT: rs.trailer.tare, jT: S.jeep.on ? rs.jeep.tare : null };
+  return [a.steer, a.drive, a.tT].every(v => isFinite(v)) && (!S.jeep.on || isFinite(a.jT)) ? a : null;
+}
+// The other way round: the coupled empty weights a truck, trailer and jeep would show together.
+function coupledFromAlone(s, a) {
+  const c = JSON.parse(JSON.stringify(s));
+  c.tractor.up = []; c.jeep.up = []; c.trailer.up = []; c.trailer.boost.up = []; c.trailer.boost.installed = false; c.trailer.cargo = [];
+  const f = ftState(c), fT = clampF(c.trailer.kpPct), fJ = clampF(c.jeep.kpPct);
+  const tractor = Object.assign({}, f.tractor, { steerCurb: a.steer, driveCurb: a.drive });
+  const trailer = Object.assign({}, f.trailer, { tare: a.tT, tareCg: f.trailer.kpToAxle * (1 - fT) });
+  const jeep = c.jeep.on ? Object.assign({}, f.jeep, { tare: a.jT, tareCg: f.jeep.kpToAxle * (1 - fJ) }) : f.jeep;
+  const r = solveCore(Object.assign({}, f, { tractor, trailer, jeep }));
+  const R = k => (r.units.find(u => u.kind === k) || {}).R;
+  return { steer: r.axles.find(q => q.kind === 'steer').w, drive: r.axles.filter(q => q.group === 'drive').reduce((q, z) => q + z.w, 0), trailerR: R('trailer'), jeepR: c.jeep.on ? R('jeep') : null };
+}
+function pieceData(k) {
+  const al = aloneWeights(), cp = o => JSON.parse(JSON.stringify(o));
+  if (k === 'tractor') { const t = cp(S.tractor); delete t.steerCurb; delete t.driveCurb; delete t.fuelGal; delete t.up; return { geo: t, alone: al ? { steer: al.steer, drive: al.drive } : null }; }
+  if (k === 'trailer') { const t = cp(S.trailer); delete t.cargo; delete t.up; delete t.tareR; if (t.boost) delete t.boost.up; return { geo: t, alone: al ? { tT: al.tT } : null }; }
+  const j = cp(S.jeep); delete j.up; delete j.tareR; delete j.on; return { geo: j, alone: al && S.jeep.on ? { jT: al.jT } : null };
+}
+function pieceSummary(x) {
+  const g = x.state.data.geo, k = x.state.piece, bits = [];
+  if (k === 'tractor') bits.push((1 + g.driveN) + ' axles', g.fw != null && g.fw !== '' ? '5th wheel ' + fmtL(g.fw) + ' in' : '');
+  else if (k === 'trailer') bits.push(((TT[g.type] || {}).label || 'Trailer'), g.n + ' axles', g.overall ? fmtL(g.overall) + ' in long' : '');
+  else bits.push(g.n + ' axles', g.overall ? fmtL(g.overall) + ' in long' : '');
+  bits.push(x.state.data.alone ? 'own weight estimated' : 'measurements only');
+  return bits.filter(Boolean).join(' · ');
+}
+function applyPiece(k, d, whole) {
+  const cp = o => JSON.parse(JSON.stringify(o));
+  if (k === 'tractor') { S.tractor = Object.assign(whole ? BLANK().tractor : S.tractor, cp(d.geo)); if (whole) { S.tractor.steerCurb = null; S.tractor.driveCurb = null; } }
+  else if (k === 'trailer') { const cargo = S.trailer.cargo; S.trailer = Object.assign({}, trailerFrom(d.geo.type || 'van'), cp(d.geo), { cargo: whole ? BLANK().trailer.cargo : cargo, tareR: null }); }
+  else { S.jeep = Object.assign({}, JEEP(), cp(d.geo), { on: true, tareR: null }); }
+  S.est = false;
+}
+function buildFromPieces(idT, idR, idJ) {
+  const T = getPieces('tractor').find(x => x.id === idT), R = getPieces('trailer').find(x => x.id === idR), J = idJ ? getPieces('jeep').find(x => x.id === idJ) : null;
+  if (!T || !R) { toast('Pick a truck and a trailer', 'err'); return false; }
+  pushHist(JSON.stringify(S));
+  const keep = JSON.parse(JSON.stringify(S.limits));
+  S = BLANK(); S.limits = keep;
+  applyPiece('tractor', T.state.data, true); applyPiece('trailer', R.state.data, true); if (J) applyPiece('jeep', J.state.data, true);
+  normalize(); S.ref = snapGeom(S);
+  const al = T.state.data.alone && R.state.data.alone && (!J || J.state.data.alone) ? { steer: T.state.data.alone.steer, drive: T.state.data.alone.drive, tT: R.state.data.alone.tT, jT: J ? J.state.data.alone.jT : null } : null;
+  if (al) {
+    try { const c = coupledFromAlone(S, al); S.tractor.steerCurb = Math.round(c.steer); S.tractor.driveCurb = Math.round(c.drive); S.trailer.tareR = Math.round(c.trailerR); if (J) S.jeep.tareR = Math.round(c.jeepR); S.est = true; S.ref = snapGeom(S); } catch (err) { S.est = false; }
+  }
+  return true;
+}
+function welBack() { return `<div class="back"><button class="linkbtn" data-act="wopt" data-v="">← Back</button></div>`; }
+function welView() {
+  const k = WVIEW;
+  if (k === 'saved') {
+    const l = getSetups().filter(x => !(x.state && (x.state.load || x.state.piece))).sort((a, b) => b.at - a.at);
+    return welBack() + `<h3 style="margin:0 0 6px">Saved combinations</h3>` + (l.length ? l.map(x => `<div class="saved"><div class="info"><strong>${esc(x.truck || 'No number')}</strong> · ${esc(x.type)}<div class="note" style="margin:0">${new Date(x.at).toLocaleDateString()}${x.note ? ' · ' + esc(x.note) : ''}</div></div><button class="btn sm" data-act="loadsetup" data-id="${esc(x.id)}">Load</button></div>`).join('') : '<p class="note">Nothing saved yet. When a combination is filled in, save it under a truck number in Saved setups.</p>');
+  }
+  if (k === 'tractor' || k === 'trailer' || k === 'jeep') {
+    const nm = PIECE_LABEL[k].toLowerCase(), l = getPieces(k);
+    const intro = k === 'tractor' ? 'Save the Tractor panel on its own: axles, spacings, 5th wheel, slide range.' : k === 'trailer' ? 'Save the Trailer panel on its own: type, axles, spacings, lengths, tandem slide and boosters. The load is not saved.' : 'Save the Jeep panel on its own: axles, spacings, kingpin positions.';
+    return welBack() + `<h3 style="margin:0 0 4px">${PIECE_LABEL[k]} setup</h3><p class="sub" style="margin:0 0 8px">${intro} Fill in its panel below first. If the empty weights are filled in too, its own weight is worked out and saved with it.</p>
+      <div class="cargo" style="grid-template-columns:minmax(0,1fr) auto;margin-bottom:8px"><label class="f"><span>Name</span><span class="in"><input type="text" id="wName" placeholder="${k === 'tractor' ? 'e.g. Truck 214' : k === 'trailer' ? 'e.g. Trailer 88, 53 ft van' : 'e.g. Jeep 3'}" value="${esc(WNAME || (k === 'tractor' ? SAVE_TRUCK : ''))}"></span></label><button class="btn sm" data-act="savepiece" data-k="${k}">Save this ${nm}</button></div>`
+      + (l.length ? l.map(x => `<div class="saved"><div class="info"><strong>${esc(x.truck)}</strong><div class="note" style="margin:0">${esc(pieceSummary(x))}</div></div><button class="btn ghost sm" data-act="usepiece" data-id="${esc(x.id)}" data-k="${k}">Open it</button><button class="xbtn" data-act="delpiece" data-id="${esc(x.id)}" aria-label="Delete ${esc(x.truck)}">×</button></div>`).join('') : `<p class="note">No saved ${nm}s yet.</p>`);
+  }
+  if (k === 'build') {
+    const T = getPieces('tractor'), R = getPieces('trailer'), J = getPieces('jeep'), opt = l => l.map(x => `<option value="${esc(x.id)}">${esc(x.truck)}</option>`).join('');
+    if (!T.length || !R.length) return welBack() + `<h3 style="margin:0 0 6px">Pick a combination</h3><p class="note">Save at least one truck and one trailer first, using Truck setup and Trailer setup.</p>`;
+    return welBack() + `<h3 style="margin:0 0 4px">Pick a combination</h3><p class="sub" style="margin:0">Choose from what you saved. If each piece has its own weight on file, the empty weights are calculated and marked as estimates. Scaled weights are always better, so replace them when you can.</p>
+      <div class="sel"><label class="f"><span>Truck</span><span class="in"><select id="wbT">${opt(T)}</select></span></label><label class="f"><span>Trailer</span><span class="in"><select id="wbR">${opt(R)}</select></span></label><label class="f"><span>Jeep</span><span class="in"><select id="wbJ"><option value="">None</option>${opt(J)}</select></span></label></div>
+      <div class="row"><button class="btn sm" data-act="buildpieces">Build this combination</button></div>`;
+  }
+  if (k === 'how') return welBack() + `<ol>
       <li><div><b>Pick the trailer.</b> Choose the type and number of axles in the Trailer panel, or load an example to see how it works.</div></li>
       <li><div><b>Enter the empty weights</b> from the scale: steer axle, rear axles and trailer axles, weighed with the tractor and trailer coupled.</div></li>
       <li><div><b>Enter the distances:</b> 5th wheel position, axle spacings and kingpin to the center of the axle group. Type feet and inches like <b>40 6</b>, or just inches like <b>486</b>.</div></li>
       <li><div><b>Add the load:</b> its weight, where its center sits from the kingpin, and its length.</div></li>
-      <li><div><b>Read the result.</b> Green is legal, yellow is close to a limit, red is over. Tap a wheel in the side view to raise or lower a lift axle.</div></li>
-    </ol>
-    <p class="tips">Tab or Enter moves to the next field. Undo and Reset are at the top, along with the pounds and kilograms switch. Save a finished setup under a truck number in Saved setups.</p>
-    <div class="row"><button class="btn sm" data-act="welcomeex">Try an example</button><button class="btn ghost sm" data-act="welcomemin">Got it, minimize</button></div></section>`;
+      <li><div><b>Read the result.</b> Green is legal, yellow is close to a limit, red is over. Tap a wheel in the side view to raise or lower a lift axle.</div></li></ol>
+      <p class="tips">Tab or Enter moves to the next field. Undo and Reset are at the top, along with the pounds and kilograms switch.</p>`;
+  return '';
+}
+function renderWelcome() {
+  const el = document.getElementById('welcome'); if (!el) return;
+  if (WEL === 'gone') { el.innerHTML = ''; return; }
+  if (WEL === 'min') { el.innerHTML = `<section class="card wel min"><span>What would you like to do?</span><div class="grow"></div><button class="btn ghost sm" data-act="welcomefull">Open</button><button class="xbtn" data-act="welcomeclose" aria-label="Remove this card" title="Remove">×</button></section>`; return; }
+  const opt = (v, t, d) => `<button type="button" class="opt" data-act="wopt" data-v="${v}"><b>${t}</b><span>${d}</span></button>`;
+  const body = WVIEW ? welView() : `<div class="opts">
+      ${opt('new', 'Start a new combination', 'Enter the empty weights from the scale, tractor and trailer together.')}
+      ${opt('saved', 'Load a saved combination', 'Open a truck and trailer you already saved.')}
+      ${opt('tractor', 'Truck setup', 'Save or open a tractor on its own.')}
+      ${opt('trailer', 'Trailer setup', 'Save or open a trailer on its own.')}
+      ${opt('jeep', 'Jeep setup', 'Save or open a jeep dolly on its own.')}
+      ${opt('build', 'Pick a combination from saved pieces', 'Choose a truck, trailer and jeep you saved.')}
+    </div><p class="tips"><button class="linkbtn" data-act="welcomeex">Try an example</button> · <button class="linkbtn" data-act="wopt" data-v="how">How this works</button></p>`;
+  el.innerHTML = `<section class="card wel"><h2>What would you like to do? <span class="grow"></span><button class="btn ghost sm" data-act="welcomemin">Minimize</button><button class="xbtn" data-act="welcomeclose" aria-label="Remove this card" title="Remove">×</button></h2>${body}</section>`;
 }
 
 /* ---------- events ---------- */
@@ -1453,6 +1557,7 @@ function onField(e) {
   if (path === 'trailer.type') { S.trailer = trailerFrom(v); S.ref = snapGeom(S); renderAll(); return; }
   setP(path, v);
   if (/^(tractor\.(steerCurb|driveCurb)|jeep\.tareR|trailer\.tareR|jeep\.on)$/.test(path)) S.ref = snapGeom(S);
+  if (/^(tractor\.(steerCurb|driveCurb)|jeep\.tareR|trailer\.tareR)$/.test(path)) S.est = false;
   if (el.dataset.struct) { renderAll(); } else { renderResults(); paintFt(); }
 }
 $('#results').addEventListener('input', e => { const i = e.target.id; if (i === 'saveTruck') { SAVE_TRUCK = e.target.value; paintCtx(); } else if (i === 'saveNote') SAVE_NOTE = e.target.value; else if (i === 'editTruck') EDIT_T = e.target.value; else if (i === 'editNote') EDIT_N = e.target.value; else if (i === 'linkName') LINK_NAME = e.target.value; else if (i === 'linkUrl') LINK_URL = e.target.value; });
@@ -1468,6 +1573,27 @@ document.addEventListener('click', e => {
   if (act === 'welcomemin') setWel('min');
   else if (act === 'welcomefull') setWel('full');
   else if (act === 'welcomeclose') setWel('gone');
+  else if (act === 'wopt') {
+    const v = b.dataset.v;
+    if (v === 'new') { pushHist(JSON.stringify(S)); S = BLANK(); S.ref = snapGeom(S); WVIEW = ''; renderAll(); setWel('min'); const f0 = document.getElementById('tractor.steerCurb'); if (f0) { f0.scrollIntoView({ block: 'center' }); f0.focus(); } toast('Ready. Enter the empty weights from the scale.'); }
+    else { WVIEW = v; renderWelcome(); }
+  }
+  else if (act === 'savepiece') {
+    const k = b.dataset.k, inp = document.getElementById('wName'), nm = (inp ? inp.value : WNAME).trim(); WNAME = nm;
+    if (!nm) { toast('Give it a name first', 'err'); return; }
+    const d = pieceData(k);
+    writeSetup({ id: setupKey(nm, 'piece-' + k), truck: nm, type: 'Piece: ' + PIECE_LABEL[k].toLowerCase(), at: Date.now(), note: '', state: { piece: k, data: d } });
+    toast('Saved ' + nm + (d.alone ? ', with its own weight' : ', measurements only')); renderWelcome();
+  }
+  else if (act === 'usepiece') {
+    const x = getPieces(b.dataset.k).find(q => q.id === b.dataset.id); if (!x) return;
+    pushHist(JSON.stringify(S)); applyPiece(b.dataset.k, x.state.data, false); WNAME = x.truck; normalize(); S.ref = snapGeom(S); renderAll(); toast('Opened ' + x.truck + '. Its panel is filled in below.');
+  }
+  else if (act === 'delpiece') { removeSetup(b.dataset.id); renderWelcome(); toast('Deleted'); }
+  else if (act === 'buildpieces') {
+    const g = id => (document.getElementById(id) || {}).value || '';
+    if (buildFromPieces(g('wbT'), g('wbR'), g('wbJ'))) { WVIEW = ''; renderAll(); setWel('min'); toast(S.est ? 'Built. The empty weights are estimates.' : 'Built. Enter the empty weights from the scale.'); }
+  }
   else if (act === 'welcomeex') { pushHist(JSON.stringify(S)); S = inState(PRESETS.van.build()); S.ref = snapGeom(S); renderAll(); setWel('min'); toast('Loaded the dry van example'); }
   else if (act === 'undo') doUndo();
   else if (act === 'reset') {
@@ -1507,7 +1633,7 @@ document.addEventListener('click', e => {
     LOADS_OPEN = true; renderAll(); toast('Added ' + item.name + '. Enter where it sits.');
   }
   else if (act === 'delsavedload') { removeSetup(b.dataset.id); LOADS_OPEN = true; renderForm(); paintFt(); toast('Removed from the list'); }
-  else if (act === 'loadsetup') { const x = getSetups().find(q => q.id === b.dataset.id); if (x) { S = JSON.parse(JSON.stringify(x.state)); SAVE_TRUCK = x.truck; SAVE_NOTE = x.note || ''; renderAll(); toast('Loaded ' + (x.truck ? 'truck ' + x.truck : 'setup')); } }
+  else if (act === 'loadsetup') { const x = getSetups().find(q => q.id === b.dataset.id); if (x) { if (WVIEW === 'saved') { WVIEW = ''; setWel('min'); } S = JSON.parse(JSON.stringify(x.state)); SAVE_TRUCK = x.truck; SAVE_NOTE = x.note || ''; renderAll(); toast('Loaded ' + (x.truck ? 'truck ' + x.truck : 'setup')); } }
   else if (act === 'delsetup') { removeSetup(b.dataset.id); if (EDIT_ID === b.dataset.id) EDIT_ID = null; renderAll(); toast('Setup deleted'); }
   else if (act === 'editsetup') { const x = getSetups().find(q => q.id === b.dataset.id); if (x) { EDIT_ID = x.id; EDIT_T = x.truck; EDIT_N = x.note || ''; renderForm(); } }
   else if (act === 'canceledit') { EDIT_ID = null; renderForm(); }
