@@ -713,13 +713,16 @@ function removeSetup(id) {
   else putSetups(getLocal().filter(q => q.id !== id));
 }
 function putSetups(a) { try { localStorage.setItem(SETUPS, JSON.stringify(a)); return true; } catch (e) { return false; } }
+const getLoads = () => getSetups().filter(x => x.state && x.state.load).sort((a, b) => String(a.truck).localeCompare(String(b.truck)));
+let LOADS_OPEN = false;
+document.addEventListener('toggle', e => { if (e.target && e.target.id === 'loadsBox') LOADS_OPEN = e.target.open; }, true);
 function backupJson() { return JSON.stringify({ app: 'axle-weight-planner', version: 1, setups: getSetups() }, null, 1); }
 function importSetups(txt) {
   let d; try { d = JSON.parse(txt); } catch (e) { toast('That is not a valid backup.', 'err'); return; }
   const a = Array.isArray(d) ? d : d && Array.isArray(d.setups) ? d.setups : null;
   if (!a) { toast('That is not a valid backup.', 'err'); return; }
   let n = 0;
-  a.forEach(x => { if (!x || typeof x !== 'object' || !x.state || typeof x.state !== 'object' || !x.state.tractor || !x.state.trailer) return; const truck = String(x.truck || ''), type = String(x.type || 'Trailer'); writeSetup({ id: setupKey(truck, type), truck, type, at: +x.at || Date.now(), note: String(x.note || ''), state: JSON.parse(JSON.stringify(x.state)) }); n++; });
+  a.forEach(x => { if (!x || typeof x !== 'object' || !x.state || typeof x.state !== 'object' || !(x.state.load || (x.state.tractor && x.state.trailer))) return; const truck = String(x.truck || ''), type = String(x.type || 'Trailer'); writeSetup({ id: setupKey(truck, type), truck, type, at: +x.at || Date.now(), note: String(x.note || ''), state: JSON.parse(JSON.stringify(x.state)) }); n++; });
   renderAll(); toast(n ? 'Imported ' + n + ' setup' + (n === 1 ? '' : 's') : 'No setups found in that backup', n ? '' : 'err');
 }
 document.addEventListener('change', e => { if (e.target && e.target.id === 'impFile') { const f = e.target.files && e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = () => importSetups(String(r.result)); r.onerror = () => toast('Could not read that file.', 'err'); r.readAsText(f); e.target.value = ''; } });
@@ -739,7 +742,7 @@ function renderForm() { renderForm0(); if (METRIC) applyUnits($('#form')); }
 function renderForm0() {
   const t = S.tractor, j = S.jeep, tr = S.trailer;
   let h = '';
-  const list = getSetups().sort((a, b) => b.at - a.at);
+  const list = getSetups().filter(x => !(x.state && x.state.load)).sort((a, b) => b.at - a.at);
   h += `<section class="card" id="setupsCard"><h2>Saved setups <span class="tag">${list.length}</span></h2><p class="sub">Saves everything on this page under a truck number and the trailer type. Saving the same truck and trailer type again replaces it. ${COLL ? 'Kept in your account, so it follows you to any device.' : FILE ? 'Kept in setups.json next to the program.' : 'Kept in this browser only.'}</p>
     <div class="cargo" style="grid-template-columns:minmax(0,1fr) minmax(0,1.4fr) auto"><label class="f" style="grid-column:auto"><span>Truck number</span><span class="in"><input type="text" id="saveTruck" placeholder="e.g. 214" value="${esc(SAVE_TRUCK)}"></span></label><label class="f" style="grid-column:auto"><span>Notes (optional)</span><span class="in"><input type="text" id="saveNote" placeholder="driver, route, quirks" value="${esc(SAVE_NOTE)}"></span></label><button class="btn sm" data-act="savesetup">Save</button></div>
     ${list.length ? list.map(x => EDIT_ID === x.id ? `<div class="saved"><div class="edit"><label class="f"><span>Truck number</span><span class="in"><input type="text" id="editTruck" value="${esc(EDIT_T)}"></span></label><label class="f"><span>Notes</span><span class="in"><input type="text" id="editNote" value="${esc(EDIT_N)}"></span></label><div class="row"><button class="btn sm" data-act="updsetup" data-id="${x.id}">Update</button><button class="btn ghost sm" data-act="copysetup" data-id="${x.id}">Save as copy</button><button class="btn ghost sm" data-act="canceledit">Cancel</button></div></div></div>` : `<div class="saved"><div class="info"><strong>${esc(x.truck || 'No number')}</strong> · ${esc(x.type)}<div class="note" style="margin:0">${new Date(x.at).toLocaleDateString()}${x.note ? ' · ' + esc(x.note) : ''}</div></div><button class="btn ghost sm" data-act="loadsetup" data-id="${x.id}">Load</button><button class="btn ghost sm" data-act="editsetup" data-id="${x.id}">Edit</button><button class="xbtn" data-act="delsetup" data-id="${x.id}" aria-label="Delete ${esc(x.truck)}">×</button></div>`).join('') : '<p class="note">Nothing saved yet.</p>'}
@@ -754,7 +757,12 @@ function renderForm0() {
   tr.cargo.forEach((c, i) => {
     h += `<div class="cargo">${F('Item', `trailer.cargo.${i}.name`, { text: true })}${F('Weight', `trailer.cargo.${i}.w`, { unit: 'lb', blank: true })}${F('Centered at (from kingpin)', `trailer.cargo.${i}.x`, { unit: 'in', blank: true, hint: `<span data-share="${i}"></span>` })}${F('Length', `trailer.cargo.${i}.len`, { unit: 'in', blank: true })}<button class="rm" data-act="rmcargo" data-i="${i}" aria-label="Remove ${esc(c.name)}">×</button></div>`;
   });
-  h += `<button class="btn ghost sm" data-act="addcargo">Add load</button>`;
+  h += `<div class="row"><button class="btn ghost sm" data-act="addcargo">Add load</button></div>`;
+  { const sl = getLoads();
+    h += `<details class="ex" id="loadsBox" style="margin-top:12px"${LOADS_OPEN ? ' open' : ''}><summary>Saved loads · ${sl.length}</summary>
+      <p class="note">Keep loads you haul often. Adding one fills in the name, weight and length. You still enter where it sits.</p>
+      ${sl.length ? sl.map(x => `<div class="saved"><div class="info"><strong>${esc(x.truck)}</strong><div class="note" style="margin:0">${fmt(x.state.w || 0)} lb${+x.state.len > 0 ? ' · ' + fmtL(+x.state.len) + ' in long' : ''}</div></div><button class="btn ghost sm" data-act="addsavedload" data-id="${esc(x.id)}">Add</button><button class="xbtn" data-act="delsavedload" data-id="${esc(x.id)}" aria-label="Delete ${esc(x.truck)}">×</button></div>`).join('') : '<p class="note">Nothing saved yet.</p>'}
+      <div class="row" style="margin-top:8px"><button class="btn ghost sm" data-act="saveloads">Save the loads above to this list</button></div></details>`; }
   if (tr.cargo.length > 1) h += `<p class="note">Combined load center: ${fmtL(cg)} in from kingpin.</p>`;
   h += `</section>`;
 
@@ -1113,6 +1121,9 @@ function printHead() {
 
 /* ---------- version ---------- */
 const CHANGES = [
+  ['1.1', 'Saved loads', [
+    'Keep loads you haul often in a list under Load. Adding one fills in the name, weight and length. They travel with the setups backup.'
+  ]],
   ['1.0', 'First numbered release', [
     'Axle loads for 3 and 4 axle tractors, jeep dollies, lowboys with boosters and van, flatbed and step deck trailers, with lift axles you raise and lower by tapping a wheel.',
     'Sliding 5th wheel and tandem, with a "where the load can go" helper that lists the legal positions.',
@@ -1133,7 +1144,7 @@ function renderChanges() {
 }
 let CHANGES_OPEN = false;
 /* ---------- save the sheet as a PDF or an image ---------- */
-const APP_VERSION = '1.0';
+const APP_VERSION = '1.1';
 async function saveFile(name, blob) {
   if (typeof window.claude !== 'undefined') {
     try {
@@ -1483,6 +1494,19 @@ document.addEventListener('click', e => {
     try { navigator.clipboard.writeText(t).then(ok, () => { const ta = document.getElementById('impText'); if (ta) { ta.value = t; ta.select(); } toast('Copy was blocked. The text is in the box below, select it and copy.', 'err'); }); } catch (err) { const ta = document.getElementById('impText'); if (ta) { ta.value = t; ta.select(); } toast('Copy was blocked. The text is in the box below.', 'err'); }
   }
   else if (act === 'imptext') { const ta = document.getElementById('impText'); if (!ta || !ta.value.trim()) { toast('Paste a backup first', 'err'); return; } importSetups(ta.value); }
+  else if (act === 'saveloads') {
+    const items = S.trailer.cargo.filter(c => +c.w > 0 && String(c.name || '').trim());
+    if (!items.length) { toast('Give a load a name and a weight first', 'err'); return; }
+    items.forEach(c => { const nm = String(c.name).trim(); writeSetup({ id: setupKey(nm, 'Load'), truck: nm, type: 'Load', at: Date.now(), note: '', state: { load: true, name: nm, w: +c.w, len: +c.len > 0 ? +c.len : null } }); });
+    LOADS_OPEN = true; renderForm(); paintFt(); toast(items.length === 1 ? 'Saved ' + items[0].name : 'Saved ' + items.length + ' loads');
+  }
+  else if (act === 'addsavedload') {
+    const x = getLoads().find(q => q.id === b.dataset.id); if (!x) return;
+    const tr = S.trailer, one = tr.cargo.length === 1 && !(+tr.cargo[0].w > 0) && !(+tr.cargo[0].x > 0), item = { name: x.state.name || x.truck, w: x.state.w, x: null, len: x.state.len };
+    if (one) tr.cargo[0] = item; else tr.cargo.push(item);
+    LOADS_OPEN = true; renderAll(); toast('Added ' + item.name + '. Enter where it sits.');
+  }
+  else if (act === 'delsavedload') { removeSetup(b.dataset.id); LOADS_OPEN = true; renderForm(); paintFt(); toast('Removed from the list'); }
   else if (act === 'loadsetup') { const x = getSetups().find(q => q.id === b.dataset.id); if (x) { S = JSON.parse(JSON.stringify(x.state)); SAVE_TRUCK = x.truck; SAVE_NOTE = x.note || ''; renderAll(); toast('Loaded ' + (x.truck ? 'truck ' + x.truck : 'setup')); } }
   else if (act === 'delsetup') { removeSetup(b.dataset.id); if (EDIT_ID === b.dataset.id) EDIT_ID = null; renderAll(); toast('Setup deleted'); }
   else if (act === 'editsetup') { const x = getSetups().find(q => q.id === b.dataset.id); if (x) { EDIT_ID = x.id; EDIT_T = x.truck; EDIT_N = x.note || ''; renderForm(); } }
