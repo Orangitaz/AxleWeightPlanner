@@ -650,7 +650,7 @@ function renderRig() {
     ${tr.shape === 'step' ? F('Upper deck length', 'trailer.upperLen', { unit: 'in', hint: 'Front of trailer to the step', blank: true }) + F('Lower deck length', 'trailer.lowerLen', { unit: 'in', hint: 'Step to rear of deck', blank: true }) : ''}
     ${F('Kingpin from front', 'trailer.kpFront', { unit: 'in', blank: true })}
     ${F('Kingpin to center of axle group', 'trailer.kpToAxle', { unit: 'in', wide: true, blank: true, hint: 'Center of all axles in the group, raised or not' })}
-  </div>${gapGrid('trailer.gaps', Array.from({ length: tr.n - 1 }, (_, i) => `${i + 1} to ${i + 2}`))}<div class="tl">Trailer axles on or off</div>${toggles('trailer', tr.n, tr.up)}<p class="note" id="eff-trailer"></p>${CHK('Sliding axle group (tandem slide)', 'trailer.slide.on')}${tr.slide.on ? `<div class="grid2" style="margin-top:8px">${F('Slide from', 'trailer.slide.min', { unit: 'in', blank: true, hint: 'Kingpin to center of axle group' })}${F('Slide to', 'trailer.slide.max', { unit: 'in', blank: true })}</div>` : ''}</div>`;
+  </div>${gapGrid('trailer.gaps', Array.from({ length: tr.n - 1 }, (_, i) => `${i + 1} to ${i + 2}`))}<div class="tl">Trailer axles on or off</div>${toggles('trailer', tr.n, tr.up)}<p class="note" id="eff-trailer"></p>${CHK('Sliding axle group (tandem slide)', 'trailer.slide.on')}${tr.slide.on ? `<div class="grid2" style="margin-top:8px">${F('Slide toward kingpin', 'trailer.slide.min', { unit: 'in', blank: true, hint: 'Kingpin to center of axle group, shortest' })}${F('Slide toward rear', 'trailer.slide.max', { unit: 'in', blank: true, hint: 'Longest' })}</div>` : ''}</div>`;
   h += `<div class="rg"><h3>Boosters <span class="tag">${b.has && b.installed ? b.n + ' axles' : b.has ? 'removed' : 'none'}</span></h3>${CHK('Trailer has boosters', 'trailer.boost.has')}`;
   if (b.has) {
     h += `<div class="grid2" style="margin-top:10px">
@@ -1131,8 +1131,8 @@ function printHead() {
 
 /* ---------- version ---------- */
 const CHANGES = [
-  ['1.3.1', '5th wheel slide order', [
-    'The 5th wheel slide now reads left to right like the side view: Slide toward cab, then Slide toward drives.'
+  ['1.3.2', 'Slide labels', [
+    'The 5th wheel slide reads Slide toward cab, then Slide toward drives. The tandem slide reads Slide toward kingpin, then Slide toward rear. Both follow the side view from left to right.'
   ]],
   ['1.3', 'Truck, trailer and jeep on their own', [
     'Each piece now has its own weights. The truck takes what it weighs alone. A trailer or jeep takes its empty kingpin weight and its empty axle weight.',
@@ -1167,7 +1167,7 @@ function renderChanges() {
 }
 let CHANGES_OPEN = false;
 /* ---------- save the sheet as a PDF or an image ---------- */
-const APP_VERSION = '1.3.1';
+const APP_VERSION = '1.3.2';
 async function saveFile(name, blob) {
   if (typeof window.claude !== 'undefined') {
     try {
@@ -1320,7 +1320,7 @@ function sanityChecks() {
   if (to2 !== null && kp !== null && to2 > 0 && kp > to2 - kf + 12) out.push(`Kingpin to center of axles (${I(kp)}) is longer than the trailer (${I(to2 - kf)} behind the kingpin).`);
   if (kf > 120) out.push(`Kingpin ${I(kf)} from the front of the trailer is a long way back. Check it.`);
   const tt = num(tr.tareR); if (tt !== null && tt > 0 && (tt < 3000 || tt > 30000)) out.push(`Trailer axles empty of ${W(tt)} is unusual. Check it.`);
-  if (tr.slide && tr.slide.on && num(tr.slide.min) !== null && num(tr.slide.max) !== null && +tr.slide.min > +tr.slide.max) out.push('Tandem slide: the "from" position is past the "to" position. Swap them.');
+  if (tr.slide && tr.slide.on && num(tr.slide.min) !== null && num(tr.slide.max) !== null && +tr.slide.min > +tr.slide.max) out.push('Tandem slide: the "toward kingpin" position is longer than the "toward rear" position. Swap them.');
   if (tr.slide && tr.slide.on && to2 !== null && num(tr.slide.max) !== null && +tr.slide.max > to2) out.push('Tandem slide goes past the rear of the trailer.');
   return out;
 }
