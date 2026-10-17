@@ -1036,7 +1036,7 @@ function paintFt() {
     }
     if (box && !box.querySelector('.nud') && (unit === 'in' || unit === 'lb' || unit === 'kg') && !el.closest('.gaps')) {
       const mk = d => { const b = document.createElement('button'); b.type = 'button'; b.className = 'nud'; b.dataset.d = d; b.textContent = d < 0 ? '\u2212' : '+'; b.setAttribute('aria-label', (d < 0 ? 'Decrease ' : 'Increase ') + 'by ' + (unit === 'lb' ? '100 lb' : unit === 'kg' ? '50 kg' : METRIC ? '1 cm' : '1 in')); b.tabIndex = -1; return b; };
-      el.after(mk(-1), mk(1));
+      // +/- buttons removed: they were easy to hit while scrolling on a phone
     }
   });
   markFields(); paintCtx();
@@ -1135,6 +1135,9 @@ function printHead() {
 
 /* ---------- version ---------- */
 const CHANGES = [
+  ['1.4.1', 'No more + and - buttons', [
+    'Removed the + and - buttons beside number fields so they are not hit by accident while scrolling on a phone. Type the number instead.'
+  ]],
   ['1.4', 'Jeep 5th wheel slide', [
     'A jeep can now have a sliding 5th wheel. Enter the shortest and longest 5th wheel center, and the legal slide window checks every position.',
     '"Trailer kingpin sits at" is now "5th wheel center".'
@@ -1175,7 +1178,7 @@ function renderChanges() {
 }
 let CHANGES_OPEN = false;
 /* ---------- save the sheet as a PDF or an image ---------- */
-const APP_VERSION = '1.4';
+const APP_VERSION = '1.4.1';
 async function saveFile(name, blob) {
   if (typeof window.claude !== 'undefined') {
     try {
