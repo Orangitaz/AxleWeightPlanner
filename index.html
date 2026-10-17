@@ -386,7 +386,7 @@ const toIn = v => (v === null || v === undefined || v === '') ? v : v * 12;
 function convState(s, f) {
   return Object.assign({}, s, {
     tractor: Object.assign({}, s.tractor, { overall: f(s.tractor.overall), fuelX: f(s.tractor.fuelX) }),
-    jeep: Object.assign({}, s.jeep, { kpToAxle: f(s.jeep.kpToAxle), coupling: f(s.jeep.coupling), overall: f(s.jeep.overall) }),
+    jeep: Object.assign({}, s.jeep, { kpToAxle: f(s.jeep.kpToAxle), coupling: f(s.jeep.coupling), overall: f(s.jeep.overall), slide: Object.assign({}, s.jeep.slide || {}, { min: f((s.jeep.slide || {}).min), max: f((s.jeep.slide || {}).max) }) }),
     trailer: Object.assign({}, s.trailer, { kpToAxle: f(s.trailer.kpToAxle), overall: f(s.trailer.overall), kpFront: f(s.trailer.kpFront), upperLen: f(s.trailer.upperLen), lowDeck: f(s.trailer.lowDeck), lowGoose: f(s.trailer.lowGoose), lowRear: f(s.trailer.lowRear), lowerLen: f(s.trailer.lowerLen), slide: Object.assign({}, s.trailer.slide, { min: f(s.trailer.slide.min), max: f(s.trailer.slide.max) }), cargo: s.trailer.cargo.map(c => Object.assign({}, c, { x: f(c.x), len: f(c.len) })) }),
     limits: Object.assign({}, s.limits, { kpra: f(s.limits.kpra) })
   });
@@ -512,7 +512,7 @@ function trailerEx(type) {
     cargo: t.cargo.map(c => Object.assign({}, c))
   };
 }
-const JEEPEx = () => ({ on: false, kpPct: 33.3, tareR: 11600, kpToAxle: 9, n: 3, gaps: [48, 48], coupling: 7, up: [] });
+const JEEPEx = () => ({ on: false, kpPct: 33.3, tareR: 11600, kpToAxle: 9, n: 3, gaps: [48, 48], coupling: 7, up: [], slide: { on: false, min: 6, max: 8 } });
 const LIM_FED = () => ({ mode: 'federal', steer: 12000, gross: 80000, axle: 20000, kpraOn: true, kpra: 41 });
 const PRESETS = {
   van: { label: 'Dry van, 5 axle', build: () => ({ tractor: tractorWith('tandem', 10533, 13961, { fwSlide: { on: true, min: -4, max: 16 } }), jeep: JEEPEx(), trailer: trailerEx('van'), limits: LIM_FED() }) },
@@ -532,7 +532,7 @@ function trailerFrom(type) {
     cargo: [{ name: 'Load', w: null, x: null, len: null }]
   };
 }
-const JEEP = () => ({ on: false, kpPct: 33.3, tareR: null, kpToAxle: null, n: 3, gaps: [null, null, null].slice(0, 2), coupling: null, overall: null, up: [] });
+const JEEP = () => ({ on: false, kpPct: 33.3, tareR: null, kpToAxle: null, n: 3, gaps: [null, null, null].slice(0, 2), coupling: null, overall: null, up: [], slide: { on: false, min: null, max: null } });
 const BLANK = () => ({
   tractor: { steerCurb: null, driveCurb: null, fuelGal: null, fuelX: null, overall: null, driveN: 2, gaps: [null, null], fw: null, up: [], fwSlide: { on: false, min: null, max: null } },
   jeep: JEEP(), trailer: trailerFrom('van'), limits: Object.assign(LIM_FED(), { kpra: 492, kpraOn: false })
@@ -545,6 +545,7 @@ function normalize() {
   const fix = (o, n) => { o.up = Array.from({ length: n }, (_, i) => !!(Array.isArray(o.up) && o.up[i])); };
   fix(S.tractor, S.tractor.driveN); fix(S.jeep, S.jeep.n); fix(S.trailer, S.trailer.n); fix(S.trailer.boost, S.trailer.boost.n);
   const gp = (o, count, def) => { const a = Array.isArray(o.gaps) ? o.gaps.slice(0, count) : []; while (a.length < count) a.push(a.length ? a[a.length - 1] : def); o.gaps = a; };
+  S.jeep.slide = Object.assign({ on: false, min: null, max: null }, S.jeep.slide || {});
   S.limits.rate = Object.assign({ steer: null, drive: null, jeep: null, trailer: null }, S.limits.rate || {});
   gp(S.tractor, S.tractor.driveN, null); gp(S.jeep, S.jeep.n - 1, null); gp(S.trailer, S.trailer.n - 1, null); gp(S.trailer.boost, S.trailer.boost.n, null);
 }
@@ -637,9 +638,9 @@ function renderRig() {
     ${SEL('Number of axles', 'jeep.n', AXN, { type: 'num', wide: true })}
     ${F('Jeep axles empty', 'jeep.tareR', { unit: 'lb', wide: true, hint: 'Scaled empty, with the trailer attached', blank: true })}
     ${F('Kingpin to center of axle group', 'jeep.kpToAxle', { unit: 'in', wide: true, blank: true })}
-    ${F('Trailer kingpin sits at', 'jeep.coupling', { unit: 'in', hint: 'From the jeep kingpin', wide: true, blank: true })}
+    ${F('5th wheel center', 'jeep.coupling', { unit: 'in', hint: 'From the jeep kingpin back to the center of its 5th wheel', wide: true, blank: true })}
     ${F('Overall length', 'jeep.overall', { unit: 'in', hint: 'Front to rear, kingpin ~10 in back', wide: true, blank: true })}
-  </div>${gapGrid('jeep.gaps', Array.from({ length: j.n - 1 }, (_, i) => `${i + 1} to ${i + 2}`))}<div class="tl">Jeep axles on or off</div>${toggles('jeep', j.n, j.up)}<p class="note" id="eff-jeep"></p>`;
+  </div>${CHK('Sliding 5th wheel', 'jeep.slide.on')}${j.slide.on ? `<div class="grid2" style="margin-top:8px">${F('Slide toward cab', 'jeep.slide.min', { unit: 'in', blank: true, hint: '5th wheel center, shortest' })}${F('Slide toward rear', 'jeep.slide.max', { unit: 'in', blank: true, hint: 'Longest' })}</div>` : ''}${gapGrid('jeep.gaps', Array.from({ length: j.n - 1 }, (_, i) => `${i + 1} to ${i + 2}`))}<div class="tl">Jeep axles on or off</div>${toggles('jeep', j.n, j.up)}<p class="note" id="eff-jeep"></p>`;
   h += `</div>`;
   h += `<div class="rg"><h3>Trailer <span class="tag">${tr.n} axles</span></h3><div class="grid2">
     ${SEL('Type', 'trailer.type', Object.keys(TT).map(k => [k, TT[k].label]), { wide: true })}
@@ -945,38 +946,41 @@ function renderAlt() {
 }
 
 function slideData(r) {
-  const tS = S.tractor.fwSlide, rS = S.trailer.slide;
+  const tS = S.tractor.fwSlide, rS = S.trailer.slide, jS = S.jeep.on && S.jeep.slide && S.jeep.slide.on ? S.jeep.slide : null;
   const range = (a, b, st) => { const o = []; if (!(b >= a)) return o; for (let v = a; v <= b + 1e-9 && o.length < 80; v += st) o.push(Math.round(v * 100) / 100); return o; };
   const xs = tS.on ? range(+tS.min, +tS.max, 2) : [S.tractor.fw];
   const ys = rS.on ? range(+rS.min, +rS.max, 6) : [S.trailer.kpToAxle];
-  const rows = ys.map(y => xs.map(x => {
-    const s2 = Object.assign({}, S, { tractor: Object.assign({}, S.tractor, { fw: x }), trailer: Object.assign({}, S.trailer, { kpToAxle: y }) });
+  const cs = jS ? range(+jS.min, +jS.max, 2) : [S.jeep.coupling];
+  const combos = []; ys.forEach(y => cs.forEach(c => combos.push({ y, c })));
+  const rows = combos.map(({ y, c }) => xs.map(x => {
+    const s2 = Object.assign({}, S, { tractor: Object.assign({}, S.tractor, { fw: x }), jeep: Object.assign({}, S.jeep, { coupling: c }), trailer: Object.assign({}, S.trailer, { kpToAxle: y }) });
     const rr = solveCombo(s2), minM = Math.min(...rr.groups.map(g => g.margin), rr.grossLimit - rr.total, rr.bridge.worst ? (S.limits.mode === 'federal' ? rr.bridge.worst.margin : 1e9) : 1e9);
-    return { x, y, ok: !rr.over, minM, rr };
+    return { x, y, c, ok: !rr.over, minM, rr };
   }));
-  return { xs, ys, rows };
+  return { xs, ys, cs, jOn: !!jS, rows };
 }
 
 function renderSlide(r) {
-  const card = $('#slideCard'), tS = S.tractor.fwSlide, rS = S.trailer.slide;
-  if (!tS.on && !rS.on) { card.hidden = true; return; }
-  const blankR = (tS.on && (tS.min == null || tS.max == null)) || (rS.on && (rS.min == null || rS.max == null));
+  const card = $('#slideCard'), tS = S.tractor.fwSlide, rS = S.trailer.slide, jS = S.jeep.on && S.jeep.slide && S.jeep.slide.on ? S.jeep.slide : null;
+  if (!tS.on && !rS.on && !jS) { card.hidden = true; return; }
+  const blankR = (tS.on && (tS.min == null || tS.max == null)) || (rS.on && (rS.min == null || rS.max == null)) || (jS && (jS.min == null || jS.max == null));
   card.hidden = false;
-  if (blankR) { card.innerHTML = '<h2>Legal slide window</h2><p class="note">Enter the slide range (from and to) to see which positions are legal.</p>'; return; }
+  if (blankR) { card.innerHTML = '<h2>Legal slide window</h2><p class="note">Enter the slide range (toward cab and toward drives or rear) to see which positions are legal.</p>'; return; }
   const d = slideData(r), all = d.rows.flat();
   const legal = all.filter(c => c.ok), best = legal.length ? legal.reduce((a, b) => b.minM > a.minM ? b : a) : null;
+  const rowLab = c => [rS.on ? 'axles ' + fmtL(c.y) : '', d.jOn ? 'jeep ' + fmtL(c.c) : ''].filter(Boolean).join(' · ');
   let h = `<h2>Legal slide window <span class="tag">${legal.length} of ${all.length} positions</span></h2>`;
-  h += `<p class="sub">${tS.on ? '5th wheel across, ' : ''}${rS.on ? 'axle slide down.' : ''} Green means every group, the gross and the bridge check pass. Click a cell to set that position.</p>`;
-  h += `<div class="scroll"><table class="sg"><thead><tr><th>${rS.on ? 'axle in' : ''}</th>${d.xs.map(x => `<th>${tS.on ? (x > 0 ? '+' : '') + x : ''}</th>`).join('')}</tr></thead><tbody>`;
+  h += `<p class="sub">${tS.on ? '5th wheel across, ' : ''}${rS.on || d.jOn ? 'trailer axles and jeep 5th wheel down.' : ''} Green means every group, the gross and the bridge check pass. Click a cell to set that position.</p>`;
+  h += `<div class="scroll"><table class="sg"><thead><tr><th>${rS.on || d.jOn ? 'in' : ''}</th>${d.xs.map(x => `<th>${tS.on ? (x > 0 ? '+' : '') + x : ''}</th>`).join('')}</tr></thead><tbody>`;
   d.rows.forEach(row => {
-    h += `<tr><th>${rS.on ? fmtL(row[0].y) : ''}</th>` + row.map(c => {
-      const cur = Math.abs(c.x - S.tractor.fw) < 1e-6 && Math.abs(c.y - S.trailer.kpToAxle) < 1e-6;
-      const tip = `5th wheel ${c.x} in, axles ${fmtL(c.y)} in: ` + c.rr.groups.map(g => g.label + ' ' + fmt(g.total)).join(', ') + (c.ok ? ' (legal)' : ' (not legal)');
-      return `<td><button class="cell${c.ok ? ' ok' : ''}${cur ? ' cur' : ''}${best === c ? ' best' : ''}" data-act="slide" data-x="${c.x}" data-y="${c.y}" title="${tip}" aria-label="${tip}">${c.ok ? '✓' : '✕'}</button></td>`;
+    h += `<tr><th>${rowLab(row[0])}</th>` + row.map(c => {
+      const cur = Math.abs(c.x - S.tractor.fw) < 1e-6 && Math.abs(c.y - S.trailer.kpToAxle) < 1e-6 && Math.abs((+c.c || 0) - (+S.jeep.coupling || 0)) < 1e-6;
+      const tip = `5th wheel ${c.x} in, axles ${fmtL(c.y)} in${d.jOn ? ', jeep 5th wheel ' + fmtL(c.c) + ' in' : ''}: ` + c.rr.groups.map(g => g.label + ' ' + fmt(g.total)).join(', ') + (c.ok ? ' (legal)' : ' (not legal)');
+      return `<td><button class="cell${c.ok ? ' ok' : ''}${cur ? ' cur' : ''}${best === c ? ' best' : ''}" data-act="slide" data-x="${c.x}" data-y="${c.y}" data-c="${c.c == null ? '' : c.c}" title="${tip}" aria-label="${tip}">${c.ok ? '✓' : '✕'}</button></td>`;
     }).join('') + '</tr>';
   });
   h += `</tbody></table></div>`;
-  h += best ? `<p class="note">Most margin: ${tS.on ? '5th wheel ' + (best.x > 0 ? '+' : '') + best.x + ' in' : ''}${tS.on && rS.on ? ', ' : ''}${rS.on ? 'axles ' + fmtL(best.y) + ' in' : ''}, tightest limit leaves ${fmt(best.minM)} lb. Outlined cell is the current setting.</p>` : `<p class="note">No position in this range is legal with the current load. Move the load, raise or lower axles, change the boosters, or widen the range.</p>`;
+  h += best ? `<p class="note">Most margin: ${[tS.on ? '5th wheel ' + (best.x > 0 ? '+' : '') + best.x + ' in' : '', rS.on ? 'axles ' + fmtL(best.y) + ' in' : '', d.jOn ? 'jeep 5th wheel ' + fmtL(best.c) + ' in' : ''].filter(Boolean).join(', ')}, tightest limit leaves ${fmt(best.minM)} lb. Outlined cell is the current setting.</p>` : `<p class="note">No position in this range is legal with the current load. Move the load, raise or lower axles, change the boosters, or widen the range.</p>`;
   card.innerHTML = h;
 }
 
@@ -1119,7 +1123,7 @@ document.addEventListener('toggle', e => { if (e.target && e.target.id === 'perm
 function printHead() {
   const t = S.tractor, j = S.jeep, tr = S.trailer, b = tr.boost, type = (TT[tr.type] || {}).label || 'Trailer', n = v => (v === null || v === undefined || v === '') ? '-' : fmtL(+v), nw = v => (v === null || v === undefined || v === '') ? '-' : fmt(+v);
   const rows = [['Tractor', `${1 + t.driveN} axles, steer empty ${nw(t.steerCurb)} lb, rear empty ${nw(t.driveCurb)} lb, 5th wheel ${n(t.fw)} in from center of rear axles, spacing ${t.gaps.map(n).join(' / ')} in${t.overall ? ', overall ' + n(t.overall) + ' in' : ''}`]];
-  if (j.on) rows.push(['Jeep', `${j.n} axles, empty ${nw(j.tareR)} lb, kingpin to center of axles ${n(j.kpToAxle)} in, trailer kingpin ${n(j.coupling)} in back, spacing ${j.gaps.map(n).join(' / ')} in${j.overall ? ', overall ' + n(j.overall) + ' in' : ''}`]);
+  if (j.on) rows.push(['Jeep', `${j.n} axles, empty ${nw(j.tareR)} lb, kingpin to center of axles ${n(j.kpToAxle)} in, 5th wheel center ${n(j.coupling)} in back, spacing ${j.gaps.map(n).join(' / ')} in${j.overall ? ', overall ' + n(j.overall) + ' in' : ''}`]);
   rows.push(['Trailer', `${type}, ${tr.n} axles, empty ${nw(tr.tareR)} lb, kingpin to center of axles ${n(tr.kpToAxle)} in, spacing ${tr.gaps.map(n).join(' / ')} in${tr.overall ? ', overall ' + n(tr.overall) + ' in' : ''}${tr.shape === 'low' && (+tr.lowGoose > 0 || +tr.lowDeck > 0 || +tr.lowRear > 0) ? ', gooseneck ' + n(tr.lowGoose) + ' in, deck ' + n(tr.lowDeck) + ' in, rear ' + n(tr.lowRear) + ' in' : ''}${tr.shape === 'step' && (+tr.upperLen > 0 || +tr.lowerLen > 0) ? ', upper deck ' + n(tr.upperLen) + ' in, lower deck ' + n(tr.lowerLen) + ' in' : ''}`]);
   if (b.has) rows.push(['Boosters', `${b.installed ? b.n + ' axles installed, empty ' + nw(b.tare) + ' lb' : 'removed'}`]);
   rows.push(['Load', tr.cargo.filter(c => +c.w > 0).map(c => `${esc(c.name)} ${nw(c.w)} lb centered ${n(c.x)} in from kingpin${+c.len > 0 ? ', ' + n(c.len) + ' in long' : ''}`).join('; ') || '-']);
@@ -1131,6 +1135,10 @@ function printHead() {
 
 /* ---------- version ---------- */
 const CHANGES = [
+  ['1.4', 'Jeep 5th wheel slide', [
+    'A jeep can now have a sliding 5th wheel. Enter the shortest and longest 5th wheel center, and the legal slide window checks every position.',
+    '"Trailer kingpin sits at" is now "5th wheel center".'
+  ]],
   ['1.3.2', 'Slide labels', [
     'The 5th wheel slide reads Slide toward cab, then Slide toward drives. The tandem slide reads Slide toward kingpin, then Slide toward rear. Both follow the side view from left to right.'
   ]],
@@ -1167,7 +1175,7 @@ function renderChanges() {
 }
 let CHANGES_OPEN = false;
 /* ---------- save the sheet as a PDF or an image ---------- */
-const APP_VERSION = '1.3.2';
+const APP_VERSION = '1.4';
 async function saveFile(name, blob) {
   if (typeof window.claude !== 'undefined') {
     try {
@@ -1313,6 +1321,7 @@ function sanityChecks() {
   if (t.fwSlide && t.fwSlide.on && num(t.fwSlide.min) !== null && num(t.fwSlide.max) !== null && +t.fwSlide.min > +t.fwSlide.max) out.push('5th wheel slide: the "toward drives" position is ahead of the "toward cab" position. Swap them.');
   if (+t.fuelGal > 300) out.push(`${fmtL(+t.fuelGal)} gal of extra fuel is more than most tractors hold.`);
   const fx = num(t.fuelX); if (fx !== null && Math.abs(fx) > 240) out.push(`The fuel tank at ${I(Math.abs(fx))} from the rear axles is outside the tractor.`);
+  if (j.on && j.slide && j.slide.on && num(j.slide.min) !== null && num(j.slide.max) !== null && +j.slide.min > +j.slide.max) out.push('Jeep 5th wheel slide: the "toward cab" position is longer than the "toward rear" position. Swap them.');
   gaps(tr.gaps, tr.n - 1, 'Trailer', 36, 72);
   if (j.on) { gaps(j.gaps, j.n - 1, 'Jeep', 36, 72); const jo = num(j.overall), jk = num(j.kpToAxle); if (jo !== null && jk !== null && jo > 0 && jo < jk) out.push(`Jeep overall length ${I(jo)} is shorter than its kingpin to axle center (${I(jk)}).`); }
   const to2 = num(tr.overall), kp = num(tr.kpToAxle), kf = +tr.kpFront || 0;
@@ -1381,7 +1390,7 @@ function missingInputs() {
   const tt = [];
   if (bad(t.steerCurb)) tt.push('steer axle empty'); if (bad(t.driveCurb)) tt.push('rear axles empty'); if (none(t.fw)) tt.push('5th wheel'); if (gapsBad(t.gaps, t.driveN)) tt.push('axle spacing');
   if (tt.length) m.push(['Tractor', tt]);
-  if (j.on) { const jj = []; if (bad(j.tareR)) jj.push('jeep axles empty'); if (bad(j.kpToAxle)) jj.push('kingpin to center of axle group'); if (bad(j.coupling)) jj.push('where the trailer kingpin sits'); if (gapsBad(j.gaps, j.n - 1)) jj.push('axle spacing'); if (jj.length) m.push(['Jeep', jj]); }
+  if (j.on) { const jj = []; if (bad(j.tareR)) jj.push('jeep axles empty'); if (bad(j.kpToAxle)) jj.push('kingpin to center of axle group'); if (bad(j.coupling)) jj.push('5th wheel center'); if (gapsBad(j.gaps, j.n - 1)) jj.push('axle spacing'); if (jj.length) m.push(['Jeep', jj]); }
   const rr = [];
   if (bad(tr.tareR)) rr.push('trailer axles empty'); if (bad(tr.kpToAxle)) rr.push('kingpin to center of axle group'); if (gapsBad(tr.gaps, tr.n - 1)) rr.push('axle spacing');
   if (tr.boost.has && tr.boost.installed && (none(tr.boost.tare) || gapsBad(tr.boost.gaps, tr.boost.n))) rr.push('booster empty weight and spacing');
@@ -1486,7 +1495,7 @@ function calcKp(k) {
   }
   const j = S.jeep, Lj = +j.kpToAxle, c = +j.coupling, tk = PW.trailer.kp;
   if (!j.on) return 'Switch on the jeep in the Jeep panel and fill it in first.';
-  if (!(+j.tareR > 0) || !(Lj > 0) || !(c > 0) || c >= Lj) return 'Fill in the jeep axles empty weight, its kingpin to center of axles, and where the trailer kingpin sits.';
+  if (!(+j.tareR > 0) || !(Lj > 0) || !(c > 0) || c >= Lj) return 'Fill in the jeep axles empty weight, its kingpin to center of axles, and its 5th wheel center.';
   if (!(tk > 0)) return 'Enter the trailer’s empty kingpin weight first (Trailer setup).';
   const jk = D - tk * (Lj - c) / Lj, ja = +j.tareR - tk * c / Lj;
   if (!(jk > 0) || !(ja > 0)) return 'Those numbers give a negative weight. Check them.';
@@ -1721,7 +1730,7 @@ document.addEventListener('click', e => {
   else if (act === 'tractor') { Object.assign(S.tractor, T[b.dataset.k]()); S.ref = snapGeom(S); renderAll(); }
   else if (act === 'addcargo') { const tr = S.trailer; tr.cargo.push({ name: 'Load ' + (tr.cargo.length + 1), w: null, x: null, len: null }); renderAll(); }
   else if (act === 'rmcargo') { S.trailer.cargo.splice(+b.dataset.i, 1); renderAll(); }
-  else if (act === 'slide') { S.tractor.fw = parseFloat(b.dataset.x); S.trailer.kpToAxle = parseFloat(b.dataset.y); renderAll(); }
+  else if (act === 'slide') { S.tractor.fw = parseFloat(b.dataset.x); S.trailer.kpToAxle = parseFloat(b.dataset.y); if (b.dataset.c !== undefined && b.dataset.c !== '' && S.jeep.on) S.jeep.coupling = parseFloat(b.dataset.c); renderAll(); }
   else if (act === 'copy') {
     if (!LAST) { toast('Enter your numbers first, then copy the summary'); return; }
     const txt = summaryText(LAST);
