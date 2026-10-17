@@ -1135,6 +1135,9 @@ function printHead() {
 
 /* ---------- version ---------- */
 const CHANGES = [
+  ['1.4.2', 'Welcome card', [
+    'Removed the red x from the "What would you like to do?" card. It can only be minimized now.'
+  ]],
   ['1.4.1', 'No more + and - buttons', [
     'Removed the + and - buttons beside number fields so they are not hit by accident while scrolling on a phone. Type the number instead.'
   ]],
@@ -1178,7 +1181,7 @@ function renderChanges() {
 }
 let CHANGES_OPEN = false;
 /* ---------- save the sheet as a PDF or an image ---------- */
-const APP_VERSION = '1.4.1';
+const APP_VERSION = '1.4.2';
 async function saveFile(name, blob) {
   if (typeof window.claude !== 'undefined') {
     try {
@@ -1449,7 +1452,7 @@ document.addEventListener('keydown', e => {
 /* ---------- first-run guide ---------- */
 const WEL_KEY = 'axle-welcome';
 let WEL = 'full';
-try { const v = localStorage.getItem(WEL_KEY); if (v === 'gone') WEL = 'gone'; else if (v === 'seen' || v === 'min') WEL = 'min'; else localStorage.setItem(WEL_KEY, 'seen'); } catch (e) {}
+try { const v = localStorage.getItem(WEL_KEY); if (v === 'gone' || v === 'seen' || v === 'min') WEL = 'min'; else localStorage.setItem(WEL_KEY, 'seen'); } catch (e) {}
 function setWel(v) { WEL = v; try { localStorage.setItem(WEL_KEY, v === 'full' ? 'seen' : v); } catch (e) {} renderWelcome(); }
 
 /* ---------- pieces: a truck, a trailer or a jeep saved on its own ---------- */
@@ -1584,7 +1587,7 @@ function welView() {
 function renderWelcome() {
   const el = document.getElementById('welcome'); if (!el) return;
   if (WEL === 'gone') { el.innerHTML = ''; return; }
-  if (WEL === 'min') { el.innerHTML = `<section class="card wel min"><span>What would you like to do?</span><div class="grow"></div><button class="btn ghost sm" data-act="welcomefull">Open</button><button class="xbtn" data-act="welcomeclose" aria-label="Remove this card" title="Remove">×</button></section>`; return; }
+  if (WEL === 'min') { el.innerHTML = `<section class="card wel min"><span>What would you like to do?</span><div class="grow"></div><button class="btn ghost sm" data-act="welcomefull">Open</button></section>`; return; }
   const opt = (v, t, d) => `<button type="button" class="opt" data-act="wopt" data-v="${v}"><b>${t}</b><span>${d}</span></button>`;
   const body = WVIEW ? welView() : `<div class="opts">
       ${opt('new', 'Start a new combination', 'Enter the empty weights from the scale, tractor and trailer together.')}
@@ -1594,7 +1597,7 @@ function renderWelcome() {
       ${opt('jeep', 'Jeep setup', 'Save a jeep with its empty kingpin and axle weights.')}
       ${opt('build', 'Combine saved pieces', 'Pick a truck, trailer and jeep you saved. The empty weights are calculated.')}
     </div><p class="tips"><button class="linkbtn" data-act="welcomeex">Try an example</button> · <button class="linkbtn" data-act="wopt" data-v="how">How this works</button></p>`;
-  el.innerHTML = `<section class="card wel"><h2>What would you like to do? <span class="grow"></span><button class="btn ghost sm" data-act="welcomemin">Minimize</button><button class="xbtn" data-act="welcomeclose" aria-label="Remove this card" title="Remove">×</button></h2>${body}</section>`;
+  el.innerHTML = `<section class="card wel"><h2>What would you like to do? <span class="grow"></span><button class="btn ghost sm" data-act="welcomemin">Minimize</button></h2>${body}</section>`;
 }
 
 /* ---------- events ---------- */
