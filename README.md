@@ -1,6 +1,6 @@
 # Axle Weight Planner
 
-Truck axle weight calculator for steer, drive and trailer groups. It handles 3 and 4 axle tractors, jeep dollies, lowboys with boosters, step decks, vans and flatbeds, lift axles, sliding 5th wheel and tandem, and legal-limit checks (federal bridge formula or custom per-axle limits). Version 1.2.
+Truck axle weight calculator for steer, drive and trailer groups. It handles 3 and 4 axle tractors, jeep dollies, lowboys with boosters, step decks, vans and flatbeds, lift axles, sliding 5th wheel and tandem, and legal-limit checks (federal bridge formula or custom per-axle limits). Version 1.3.
 
 ## Ways to use it
 
