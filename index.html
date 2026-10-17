@@ -631,7 +631,7 @@ function renderRig() {
     ${F('Overall length', 'tractor.overall', { unit: 'in', hint: 'Bumper to back of frame', wide: true, blank: true })}
     ${F('Extra fuel', 'tractor.fuelGal', { unit: 'gal', blank: true, hint: '<span data-fuel></span>Beyond what was on the scale when weighed empty' })}
     ${F('Tank center', 'tractor.fuelX', { unit: 'in', blank: true, hint: 'From center of rear axles, + ahead' })}
-  </div>${CHK('Sliding 5th wheel', 'tractor.fwSlide.on')}${t.fwSlide.on ? `<div class="grid2" style="margin-top:8px">${F('Slide from', 'tractor.fwSlide.min', { unit: 'in', blank: true })}${F('Slide to', 'tractor.fwSlide.max', { unit: 'in', blank: true })}</div>` : ''}${gapGrid('tractor.gaps', Array.from({ length: t.driveN }, (_, i) => `${i + 1} to ${i + 2}`))}<p class="note" style="margin:6px 0 0">Wheelbase, steer to center of rear axles: ${LASTW > 0 ? fmt1(LASTW) + ' in' : 'enter the spacing'}</p><div class="tl">Rear axles on or off</div>${toggles('tractor', t.driveN, t.up)}</div>`;
+  </div>${CHK('Sliding 5th wheel', 'tractor.fwSlide.on')}${t.fwSlide.on ? `<div class="grid2" style="margin-top:8px">${F('Slide toward cab', 'tractor.fwSlide.max', { unit: 'in', blank: true, hint: 'Furthest ahead of the rear axles' })}${F('Slide toward drives', 'tractor.fwSlide.min', { unit: 'in', blank: true, hint: 'Furthest back' })}</div>` : ''}${gapGrid('tractor.gaps', Array.from({ length: t.driveN }, (_, i) => `${i + 1} to ${i + 2}`))}<p class="note" style="margin:6px 0 0">Wheelbase, steer to center of rear axles: ${LASTW > 0 ? fmt1(LASTW) + ' in' : 'enter the spacing'}</p><div class="tl">Rear axles on or off</div>${toggles('tractor', t.driveN, t.up)}</div>`;
   h += `<div class="rg"><h3>Jeep <span class="tag">${j.on ? j.n + ' axles' : 'not used'}</span></h3>${CHK('Run a jeep dolly', 'jeep.on')}`;
   if (j.on) h += `<div class="grid2" style="margin-top:10px">
     ${SEL('Number of axles', 'jeep.n', AXN, { type: 'num', wide: true })}
@@ -1131,6 +1131,9 @@ function printHead() {
 
 /* ---------- version ---------- */
 const CHANGES = [
+  ['1.3.1', '5th wheel slide order', [
+    'The 5th wheel slide now reads left to right like the side view: Slide toward cab, then Slide toward drives.'
+  ]],
   ['1.3', 'Truck, trailer and jeep on their own', [
     'Each piece now has its own weights. The truck takes what it weighs alone. A trailer or jeep takes its empty kingpin weight and its empty axle weight.',
     'Not sure of a kingpin weight? Weigh the truck alone, fill in the combination weights, and the page works the kingpin weight out as the difference.',
@@ -1164,7 +1167,7 @@ function renderChanges() {
 }
 let CHANGES_OPEN = false;
 /* ---------- save the sheet as a PDF or an image ---------- */
-const APP_VERSION = '1.3';
+const APP_VERSION = '1.3.1';
 async function saveFile(name, blob) {
   if (typeof window.claude !== 'undefined') {
     try {
@@ -1307,7 +1310,7 @@ function sanityChecks() {
   const se = num(t.steerCurb); if (se !== null && se > 0 && (se < 6000 || se > 14000)) out.push(`Steer axle empty of ${W(se)} is unusual. Usual is about ${W(8000)} to ${W(13000)}.`);
   const dr = num(t.driveCurb); if (dr !== null && dr > 0 && (dr < 7000 || dr > 24000)) out.push(`Rear axles empty of ${W(dr)} is unusual. Check that it is the whole rear group.`);
   const wb = (t.gaps || []).slice(0, t.driveN).reduce((q, v) => q + (+v || 0), 0), to = num(t.overall); if (to !== null && wb > 0 && to > 0 && to < wb) out.push(`Tractor overall length ${I(to)} is shorter than the span of its axles (${I(wb)}).`);
-  if (t.fwSlide && t.fwSlide.on && num(t.fwSlide.min) !== null && num(t.fwSlide.max) !== null && +t.fwSlide.min > +t.fwSlide.max) out.push('5th wheel slide: the "from" position is ahead of the "to" position. Swap them.');
+  if (t.fwSlide && t.fwSlide.on && num(t.fwSlide.min) !== null && num(t.fwSlide.max) !== null && +t.fwSlide.min > +t.fwSlide.max) out.push('5th wheel slide: the "toward drives" position is ahead of the "toward cab" position. Swap them.');
   if (+t.fuelGal > 300) out.push(`${fmtL(+t.fuelGal)} gal of extra fuel is more than most tractors hold.`);
   const fx = num(t.fuelX); if (fx !== null && Math.abs(fx) > 240) out.push(`The fuel tank at ${I(Math.abs(fx))} from the rear axles is outside the tractor.`);
   gaps(tr.gaps, tr.n - 1, 'Trailer', 36, 72);
