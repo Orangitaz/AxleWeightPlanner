@@ -20,4 +20,4 @@ One number is inches (`144` becomes 12' 0"). Two numbers are feet then inches (`
 
 ## Android app
 
-Open the repository's Releases page on your phone, open "Android app (latest)" and download `AxleWeightPlanner.apk`. Allow installs from your browser when Android asks, then open the file. The app is built automatically on GitHub (see `.github/workflows/android.yml`) each time the page changes. Saved setups stay on the phone; use "Download backup" now and then. Save PDF, Save image, Driver card and Download backup save into the Downloads folder, and Print sheet opens Android's print dialog.
+Open the repository's Releases page on your phone, open "Android app (latest)" and download `AxleWeightPlanner-<version>.apk`. Allow installs from your browser when Android asks, then open the file. The app is built automatically on GitHub (see `.github/workflows/android.yml`) each time the page changes. Saved setups stay on the phone; use "Download backup" now and then. Save PDF, Save image, Driver card and Download backup save into the Downloads folder, and Print sheet opens Android's print dialog.
