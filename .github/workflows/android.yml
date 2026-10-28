@@ -16,7 +16,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with: { gradle-version: '8.9' }
       - name: Put the page inside the app
-        run: cp index.html android/app/src/main/assets/index.html
+        run: mkdir -p android/app/src/main/assets && cp index.html android/app/src/main/assets/index.html
       - name: Build
         working-directory: android
         run: gradle --no-daemon assembleDebug
