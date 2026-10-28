@@ -299,6 +299,7 @@ svg .lead { stroke: var(--ink-2); stroke-width: 1; stroke-dasharray: 3 3; }
       <button class="btn ghost sm" data-act="copy" id="copyBtn">Copy summary</button>
       <button class="btn ghost sm" data-act="print" id="printBtn">Print sheet</button>
       <button class="btn ghost sm" data-act="savepdf" title="Save the sheet as a PDF you can email or attach">Save PDF</button>
+      <button class="btn ghost sm" data-act="savedriver" title="One big page for the cab: the axle weights against their limits and the slide positions that work">Driver card</button>
       <button class="btn ghost sm" data-act="savepng" title="Save the sheet as a picture">Save image</button>
       <button class="iconbtn" id="themeBtn" type="button" data-act="theme" aria-label="Switch between light and dark" title="Light or dark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v17a8.5 8.5 0 0 0 0-17z" fill="currentColor"/></svg></button>
     </div>
@@ -1135,6 +1136,10 @@ function printHead() {
 
 /* ---------- version ---------- */
 const CHANGES = [
+  ['1.5', 'Driver card', [
+    'New Driver card button saves one big page for the cab: each axle group in large type against its limit, the position the truck is set to, and the slide positions that are legal.',
+    'The Android app can now be built from the GitHub page (see the README).'
+  ]],
   ['1.4.2', 'Welcome card', [
     'Removed the red x from the "What would you like to do?" card. It can only be minimized now.'
   ]],
@@ -1181,8 +1186,15 @@ function renderChanges() {
 }
 let CHANGES_OPEN = false;
 /* ---------- save the sheet as a PDF or an image ---------- */
-const APP_VERSION = '1.4.2';
+if (window.AndroidBridge && window.AndroidBridge.print) { const _p = window.print; window.print = () => { try { window.AndroidBridge.print(); } catch (e) { _p.call(window); } }; }
+const APP_VERSION = '1.5';
 async function saveFile(name, blob) {
+  if (window.AndroidBridge && window.AndroidBridge.save) {
+    try {
+      const b64 = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1] || ''); fr.onerror = rej; fr.readAsDataURL(blob); });
+      window.AndroidBridge.save(name, blob.type || 'application/octet-stream', b64); return 'saved';
+    } catch (err) { return 'failed'; }
+  }
   if (typeof window.claude !== 'undefined') {
     try {
       const dl = await window.claude.use('downloads');
@@ -1260,8 +1272,69 @@ function sheetLayout(ctx, d, dia, draw, PW, PH) {
   need(40); y += 16; T('Axle Weight Planner ' + APP_VERSION + '  ·  Figures are calculated from the scaled weights and distances entered. Confirm on a scale.', M, y + 18, F(16), INK2);
   return page + 1;
 }
-async function buildSheet() {
+function driverData() {
+  const d = sheetData(), tS = S.tractor.fwSlide, rS = S.trailer.slide, jS = S.jeep.on && S.jeep.slide && S.jeep.slide.on ? S.jeep.slide : null;
+  const now = new Date(), when = now.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  const type = (TT[S.trailer.type] || {}).label || 'Trailer';
+  const out = { title: SAVE_TRUCK ? 'Truck ' + SAVE_TRUCK : 'Axle weights', sub: type + ' · ' + when, groups: d.groups, gross: (LAST && LAST.total) ? fmt(LAST.total) + ' lb' : '', warns: d.warns, setting: [], window: [] };
+  if (S.tractor.fw !== null && S.tractor.fw !== '') out.setting.push('5th wheel ' + fmtL(S.tractor.fw) + ' in');
+  if (S.trailer.kpToAxle) out.setting.push('trailer axles ' + fmtL(S.trailer.kpToAxle) + ' in');
+  if (S.jeep.on && S.jeep.coupling) out.setting.push('jeep 5th wheel ' + fmtL(S.jeep.coupling) + ' in');
+  try {
+    const blank = (tS.on && (tS.min == null || tS.max == null)) || (rS.on && (rS.min == null || rS.max == null)) || (jS && (jS.min == null || jS.max == null));
+    if ((tS.on || rS.on || jS) && !blank && LAST) {
+      const sd = slideData(LAST);
+      sd.rows.forEach(row => {
+        const ok = row.filter(c => c.ok).map(c => c.x), lab = [rS.on ? 'Trailer axles ' + fmtL(row[0].y) + ' in' : '', sd.jOn ? 'jeep 5th wheel ' + fmtL(row[0].c) + ' in' : ''].filter(Boolean).join(', ');
+        let txt;
+        if (!tS.on) txt = row[0].ok ? 'legal' : 'not legal';
+        else if (!ok.length) txt = 'no legal 5th wheel position';
+        else txt = '5th wheel ' + fmtL(Math.min(...ok)) + ' to ' + fmtL(Math.max(...ok)) + ' in' + (row.filter(c => c.x >= Math.min(...ok) && c.x <= Math.max(...ok)).length > ok.length ? ' (some in between are not legal)' : '');
+        out.window.push([lab || 'Current', txt]);
+      });
+    }
+  } catch (e) {}
+  return out;
+}
+function driverLayout(ctx, d, draw, PW, PH) {
+  const M = 70, CW = PW - 2 * M, INK = '#101A26', INK2 = '#566376', LINE = '#D5DAE1', COL = { ok: '#12794A', near: '#8F5B08', over: '#B3261E' };
+  const F = (px, wt) => (wt || 400) + ' ' + px + 'px "Inter", "Segoe UI", system-ui, -apple-system, Helvetica, Arial, sans-serif';
+  let y = M;
+  const T = (txt, x, yy, font, color, align) => { if (!draw) return; ctx.font = font; ctx.fillStyle = color; ctx.textAlign = align || 'left'; ctx.textBaseline = 'alphabetic'; ctx.fillText(txt, x, yy); };
+  const R = (x, yy, w, h, color) => { if (!draw) return; ctx.fillStyle = color; ctx.fillRect(x, yy, w, h); };
+  const wrap = (txt, font, maxW) => { ctx.font = font; const out = []; String(txt).split('\n').forEach(par => { let line = ''; par.split(/\s+/).forEach(wd => { const t = line ? line + ' ' + wd : wd; if (line && ctx.measureText(t).width > maxW) { out.push(line); line = wd; } else line = t; }); out.push(line); }); return out; };
+  T(d.title, M, y + 52, F(60, 800), INK); y += 78;
+  T(d.sub, M, y + 24, F(28), INK2); if (d.gross) T('Gross ' + d.gross, PW - M, y + 24, F(30, 700), INK, 'right'); y += 54;
+  R(M, y, CW, 3, LINE); y += 30;
+  d.groups.forEach(g => {
+    const h = 150; R(M, y, 14, h - 20, COL[g.st]);
+    T(g.label, M + 40, y + 46, F(34, 700), INK);
+    T(g.pill, PW - M, y + 46, F(28, 800), COL[g.st], 'right');
+    T(g.big.replace(/\s+/g, ' ').trim(), M + 40, y + 108, F(58, 800), COL[g.st] === COL.ok ? INK : COL[g.st]);
+    const lim = g.dl.filter(x => /limit|max|allow|margin|over|under/i.test(x)).slice(0, 2).join('   ·   ');
+    if (lim) T(lim, PW - M, y + 108, F(24), INK2, 'right');
+    y += h;
+  });
+  if (d.setting.length) { y += 10; T('Set to', M, y + 30, F(28, 700), INK); T(d.setting.join('   ·   '), M + 140, y + 30, F(28), INK); y += 58; }
+  if (d.window.length) {
+    y += 6; T('Legal slide positions', M, y + 34, F(32, 700), INK); y += 56;
+    d.window.slice(0, 8).forEach(([k, v]) => { T(k, M, y + 26, F(26, 600), INK2); T(v, M + 520, y + 26, F(26), INK); y += 40; });
+    y += 8;
+  }
+  if (d.warns.length) {
+    T('Notes', M, y + 34, F(32, 700), INK); y += 54;
+    d.warns.slice(0, 4).forEach(w => { const lines = wrap(w, F(22), CW - 30).slice(0, 2); lines.forEach((ln, i) => T((i ? '' : '• ') + ln, M + (i ? 26 : 0), y + 22 + i * 28, F(22), INK)); y += lines.length * 28 + 10; });
+  }
+  T('Axle Weight Planner ' + APP_VERSION + '  ·  Calculated, not scaled. Confirm on a scale.', M, PH - M + 10, F(18), INK2);
+  return y;
+}
+async function buildSheet(mode) {
   if (!LAST) return null;
+  if (mode === 'driver') {
+    const PW = 1275, PH = 1650, cv = document.createElement('canvas'); cv.width = PW; cv.height = PH; const ctx = cv.getContext('2d');
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, PW, PH); driverLayout(ctx, driverData(), true, PW, PH);
+    return { cv, pages: 1, PW, PH };
+  }
   const d = sheetData(), dia = await diagramImage(), PW = 1275, PH = 1650;
   const probe = document.createElement('canvas').getContext('2d');
   const pages = sheetLayout(probe, d, dia, false, PW, PH);
@@ -1292,11 +1365,11 @@ function makePdf(jpgs) {
 }
 const toBlob = (cv, type, q) => new Promise((res, rej) => cv.toBlob(b => b ? res(b) : rej(new Error('encode')), type, q));
 function sheetName(ext) { const d = new Date(), z = v => String(v).padStart(2, '0'); const tk = (SAVE_TRUCK || '').replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-|-$/g, ''); return 'axle-weights' + (tk ? '-truck-' + tk : '') + '-' + d.getFullYear() + z(d.getMonth() + 1) + z(d.getDate()) + '.' + ext; }
-async function saveSheet(kind) {
+async function saveSheet(kind, mode) {
   if (!LAST) { toast('Fill in the numbers first, then save the sheet.', 'err'); return; }
   toast('Preparing the sheet...');
   try {
-    const sh = await buildSheet(); if (!sh) { toast('Nothing to save yet.', 'err'); return; }
+    const sh = await buildSheet(mode); if (!sh) { toast('Nothing to save yet.', 'err'); return; }
     let blob;
     if (kind === 'png') blob = await toBlob(sh.cv, 'image/png');
     else {
@@ -1308,7 +1381,7 @@ async function saveSheet(kind) {
       }
       blob = makePdf(jpgs);
     }
-    const r = await saveFile(sheetName(kind === 'png' ? 'png' : 'pdf'), blob);
+    const r = await saveFile(sheetName(kind === 'png' ? 'png' : 'pdf').replace('axle-weights', mode === 'driver' ? 'driver-card' : 'axle-weights'), blob);
     if (r === 'saved') toast(kind === 'png' ? 'Image saved' : 'PDF saved'); else if (r === 'failed') toast('This browser blocked the download.', 'err');
   } catch (err) { toast('Could not build the sheet: ' + (err && err.message ? err.message : 'unknown error'), 'err'); }
 }
@@ -1725,6 +1798,7 @@ document.addEventListener('click', e => {
   else if (act === 'changes') { CHANGES_OPEN = !CHANGES_OPEN; renderChanges(); if (CHANGES_OPEN) { const e2 = document.getElementById('changes'); if (e2) e2.scrollIntoView({ block: 'nearest' }); } }
   else if (act === 'savepdf') saveSheet('pdf');
   else if (act === 'savepng') saveSheet('png');
+  else if (act === 'savedriver') saveSheet('pdf', 'driver');
   else if (act === 'print') { try { printHead(); window.print(); } catch (err) {} }
   else if (act === 'preset') { S = inState(PRESETS[b.dataset.k].build()); S.ref = snapGeom(S); renderAll(); }
   else if (act === 'axle') {

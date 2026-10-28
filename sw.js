@@ -1,6 +1,6 @@
 // Keeps the planner working without a signal. Pages are served from the cache first
 // and refreshed in the background, so the next open picks up any update.
-const CACHE = 'axle-planner-1.4.2';
+const CACHE = 'axle-planner-1.5';
 const FILES = ['./', 'index.html', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png', 'icon-180.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });

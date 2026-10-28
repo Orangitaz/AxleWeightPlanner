@@ -1,6 +1,6 @@
 # Axle Weight Planner
 
-Truck axle weight calculator for steer, drive and trailer groups. It handles 3 and 4 axle tractors, jeep dollies, lowboys with boosters, step decks, vans and flatbeds, lift axles, sliding 5th wheel and tandem, and legal-limit checks (federal bridge formula or custom per-axle limits). Version 1.4.2.
+Truck axle weight calculator for steer, drive and trailer groups. It handles 3 and 4 axle tractors, jeep dollies, lowboys with boosters, step decks, vans and flatbeds, lift axles, sliding 5th wheel and tandem, and legal-limit checks (federal bridge formula or custom per-axle limits). Version 1.5.
 
 ## Ways to use it
 
@@ -17,3 +17,7 @@ Truck axle weight calculator for steer, drive and trailer groups. It handles 3 a
 ## Entering lengths
 
 One number is inches (`144` becomes 12' 0"). Two numbers are feet then inches (`26 18` becomes 27' 6"). The metric switch at the top changes weights to kilograms and lengths to meters.
+
+## Android app
+
+Open the repository's Releases page on your phone, open "Android app (latest)" and download `AxleWeightPlanner.apk`. Allow installs from your browser when Android asks, then open the file. The app is built automatically on GitHub (see `.github/workflows/android.yml`) each time the page changes. Saved setups stay on the phone; use "Download backup" now and then. Save PDF, Save image, Driver card and Download backup save into the Downloads folder, and Print sheet opens Android's print dialog.
