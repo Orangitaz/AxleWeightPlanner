@@ -285,6 +285,29 @@ svg .lead { stroke: var(--ink-2); stroke-width: 1; stroke-dasharray: 3 3; }
   .ph dl { display: grid; grid-template-columns: auto 1fr; gap: 1px 12px; margin: 6px 0 10px; font-size: 12px; }
   .ph dt { color: var(--ink-2); } .ph dd { margin: 0; }
 }
+
+/* phone: bigger, roomier tap targets so a thumb scrolling the page does not hit things */
+@media (pointer: coarse) {
+  .btn, .btn.sm, .chip, .strip button { min-height: 44px; }
+  .acts { gap: 10px; }
+  .strip { gap: 10px; }
+  .chip { padding: 9px 14px; }
+  .chips { gap: 10px; }
+  .chk { min-height: 44px; margin-top: 4px; }
+  .chk input { width: 24px; height: 24px; }
+  summary { min-height: 44px; display: flex; align-items: center; }
+  .cargo .rm, .xbtn { width: 44px; height: 44px; }
+  .cell { width: 42px; height: 40px; }
+  .sg { border-spacing: 4px; }
+  .fit { gap: 3px; }
+  .fit button { width: 14px; height: 44px; }
+  .fit button.sel { outline: 3px dashed var(--accent); outline-offset: 1px; opacity: 1; }
+  .linkbtn { padding: 12px 4px; }
+  .nav { gap: 6px; }
+  .nav button { min-height: 44px; padding: 8px 14px; }
+  .iconbtn { width: 44px; height: 44px; }
+  #linksBox a { display: inline-block; padding: 12px 0; }
+}
 </style>
 </head><body>
 <div class="wrap">
@@ -1001,6 +1024,7 @@ function loadFit() {
   }
   return { cells, cg, step };
 }
+let FIT_SEL = null;
 function renderFit() {
   const el = $('#fitCard'), f = loadFit();
   if (!f || !f.cells.length) { el.hidden = true; return; }
@@ -1009,8 +1033,9 @@ function renderFit() {
   f.cells.forEach(c => { if (c.ok) { if (!cur) { cur = { a: c.c, b: c.c }; runs.push(cur); } cur.b = c.c; } else cur = null; });
   const near = f.cells.reduce((a, c) => Math.abs(c.d) < Math.abs(a.d) ? c : a, f.cells[0]);
   let h = `<h2>Where the load can go <span class="tag">${runs.length ? runs.length + (runs.length > 1 ? ' legal ranges' : ' legal range') : 'no legal position'}</span></h2>`;
-  h += `<p class="sub">Slides the whole load forward or back along the deck and checks every group, the gross and the bridge formula. Green is legal. Click a spot to move the load there. Outlined is where it sits now.</p>`;
-  h += `<div class="fit" role="group" aria-label="Load positions">${f.cells.map(c => `<button type="button" class="${c.ok ? 'ok' : ''}${c === near ? ' cur' : ''}" data-act="shiftload" data-d="${c.d}" title="Load center ${fmtL(c.c)} in from kingpin: ${c.ok ? 'legal' : 'not legal'}" aria-label="Load center ${fmtL(c.c)} in from kingpin, ${c.ok ? 'legal' : 'not legal'}"></button>`).join('')}</div>`;
+  h += `<p class="sub">Slides the whole load forward or back along the deck and checks every group, the gross and the bridge formula. Green is legal. Click a spot to move the load there (on a phone, tap it twice). Outlined is where it sits now.</p>`;
+  h += `<div class="fit" role="group" aria-label="Load positions">${f.cells.map(c => `<button type="button" class="${c.ok ? 'ok' : ''}${c === near ? ' cur' : ''}${c.d === FIT_SEL ? ' sel' : ''}" data-act="shiftload" data-d="${c.d}" title="Load center ${fmtL(c.c)} in from kingpin: ${c.ok ? 'legal' : 'not legal'}" aria-label="Load center ${fmtL(c.c)} in from kingpin, ${c.ok ? 'legal' : 'not legal'}"></button>`).join('')}</div>`;
+  if (FIT_SEL !== null) { const sc = f.cells.find(c => c.d === FIT_SEL); if (sc) h += `<p class="note" style="color:var(--ink);font-weight:600">Tap the dashed spot again to move the load so its center is ${fmtL(sc.c)} in from the kingpin (${sc.ok ? 'legal' : 'not legal'}).</p>`; }
   h += `<p class="note">Combined load center from the kingpin: ${fmtL(f.cells[0].c)} in (front) to ${fmtL(f.cells[f.cells.length - 1].c)} in (rear). Now at ${fmtL(f.cg)} in.${runs.length ? ' Legal from ' + runs.map(q => q.a === q.b ? fmtL(q.a) + ' in' : fmtL(q.a) + ' in to ' + fmtL(q.b) + ' in').join(' and from ') + '.' : ' Nothing in this range is legal with the current load, so change the load or the axles.'}</p>`;
   el.innerHTML = h;
 }
@@ -1136,6 +1161,11 @@ function printHead() {
 
 /* ---------- version ---------- */
 const CHANGES = [
+  ['1.5.1', 'Easier on a phone', [
+    'Buttons, tabs, chips, checkboxes and list headers are bigger and farther apart on touch screens, so scrolling with a thumb is less likely to hit them.',
+    'The Where the load can go map needs two taps on a phone: the first marks a spot, the second moves the load.',
+    'The Android app keeps the same signing key from now on, so a new version installs over the old one and keeps your saved setups.'
+  ]],
   ['1.5', 'Driver card', [
     'New Driver card button saves one big page for the cab: each axle group in large type against its limit, the position the truck is set to, and the slide positions that are legal.',
     'The Android app can now be built from the GitHub page (see the README).'
@@ -1187,7 +1217,7 @@ function renderChanges() {
 let CHANGES_OPEN = false;
 /* ---------- save the sheet as a PDF or an image ---------- */
 if (window.AndroidBridge && window.AndroidBridge.print) { const _p = window.print; window.print = () => { try { window.AndroidBridge.print(); } catch (e) { _p.call(window); } }; }
-const APP_VERSION = '1.5';
+const APP_VERSION = '1.5.1';
 async function saveFile(name, blob) {
   if (window.AndroidBridge && window.AndroidBridge.save) {
     try {
@@ -1794,7 +1824,7 @@ document.addEventListener('click', e => {
   }
   else if (act === 'restorelinks') { HIDDEN = []; saveHidden(); renderForm(); toast('Oregon links restored'); }
   else if (act === 'kpra') { S.limits.kpra = +b.dataset.v; renderAll(); }
-  else if (act === 'shiftload') { const d = +b.dataset.d; S.trailer.cargo.forEach(c => { if (+c.w > 0) c.x = Math.round((+c.x + d) * 10) / 10; }); renderAll(); }
+  else if (act === 'shiftload') { const d = +b.dataset.d; if (matchMedia('(pointer: coarse)').matches && FIT_SEL !== d) { FIT_SEL = d; renderAll(); return; } FIT_SEL = null; S.trailer.cargo.forEach(c => { if (+c.w > 0) c.x = Math.round((+c.x + d) * 10) / 10; }); renderAll(); }
   else if (act === 'changes') { CHANGES_OPEN = !CHANGES_OPEN; renderChanges(); if (CHANGES_OPEN) { const e2 = document.getElementById('changes'); if (e2) e2.scrollIntoView({ block: 'nearest' }); } }
   else if (act === 'savepdf') saveSheet('pdf');
   else if (act === 'savepng') saveSheet('png');

@@ -6,9 +6,20 @@ android {
         applicationId 'com.orangitaz.axleplanner'
         minSdk 24
         targetSdk 34
-        versionCode 15
-        versionName '1.5'
+        versionCode 151
+        versionName '1.5.1'
     }
-    buildTypes { release { minifyEnabled false } }
+    signingConfigs {
+        planner {
+            storeFile file('axleplanner.keystore')
+            storePassword 'axleplanner'
+            keyAlias 'axleplanner'
+            keyPassword 'axleplanner'
+        }
+    }
+    buildTypes {
+        debug { signingConfig signingConfigs.planner }
+        release { minifyEnabled false; signingConfig signingConfigs.planner }
+    }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
 }
