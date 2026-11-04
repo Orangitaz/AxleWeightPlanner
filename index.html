@@ -399,7 +399,7 @@ function solveTractor(t, Kfw) {
 function allowedSpan(L, N, lim) {
   if (lim.mode === 'custom') return lim.axle * N;
   if (N === 1) return 20000;
-  let a = 500 * Math.round(L * N / (N - 1) + 12 * N + 36);
+  let a = 500 * Math.ceil(L * N / (N - 1) + 12 * N + 36 - 0.5 - 1e-6); // nearest 500 lb, and an exact tie rounds down like the published table
   if (N === 2 && L <= 8.0001) a = Math.min(a, 34000);
   return Math.min(a, 80000);
 }
@@ -1161,6 +1161,12 @@ function printHead() {
 
 /* ---------- version ---------- */
 const CHANGES = [
+  ['1.5.2', 'Corrections', [
+    'Bridge formula: when the formula lands exactly halfway between two 500 lb steps, the limit now rounds down like the published table (for example 3 axles at 9 ft is 42,500 lb, not 43,000 lb).',
+    'Driver card now shows metric units when the page is set to metric.',
+    'Windows and Linux programs no longer quit by themselves after the computer wakes from sleep.',
+    'Android app is now a release build for Android 10 and newer.'
+  ]],
   ['1.5.1', 'Easier on a phone', [
     'Buttons, tabs, chips, checkboxes and list headers are bigger and farther apart on touch screens, so scrolling with a thumb is less likely to hit them.',
     'The Where the load can go map needs two taps on a phone: the first marks a spot, the second moves the load.',
@@ -1217,7 +1223,7 @@ function renderChanges() {
 let CHANGES_OPEN = false;
 /* ---------- save the sheet as a PDF or an image ---------- */
 if (window.AndroidBridge && window.AndroidBridge.print) { const _p = window.print; window.print = () => { try { window.AndroidBridge.print(); } catch (e) { _p.call(window); } }; }
-const APP_VERSION = '1.5.1';
+const APP_VERSION = '1.5.2';
 async function saveFile(name, blob) {
   if (window.AndroidBridge && window.AndroidBridge.save) {
     try {
@@ -1324,6 +1330,11 @@ function driverData() {
       });
     }
   } catch (e) {}
+  if (METRIC) {
+    out.gross = out.gross ? uStr(out.gross) : out.gross;
+    out.setting = out.setting.map(uStr);
+    out.window = out.window.map(([k, v]) => [uStr(k), uStr(v)]);
+  }
   return out;
 }
 function driverLayout(ctx, d, draw, PW, PH) {

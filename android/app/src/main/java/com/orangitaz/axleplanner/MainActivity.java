@@ -4,7 +4,6 @@ import android.app.Activity;
 import android.content.ContentValues;
 import android.content.Intent;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
@@ -18,8 +17,6 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.widget.Toast;
 
-import java.io.File;
-import java.io.FileOutputStream;
 import java.io.OutputStream;
 
 /** Shows the Axle Weight Planner page full screen and lets it save files and print. */
@@ -74,18 +71,12 @@ public class MainActivity extends Activity {
             try {
                 byte[] data = Base64.decode(base64, Base64.DEFAULT);
                 String safe = name.replaceAll("[^A-Za-z0-9._-]", "_");
-                if (Build.VERSION.SDK_INT >= 29) {
-                    ContentValues v = new ContentValues();
-                    v.put(MediaStore.Downloads.DISPLAY_NAME, safe);
-                    v.put(MediaStore.Downloads.MIME_TYPE, mime);
-                    v.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS);
-                    Uri u = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);
-                    try (OutputStream o = getContentResolver().openOutputStream(u)) { o.write(data); }
-                } else {
-                    File dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
-                    dir.mkdirs();
-                    try (OutputStream o = new FileOutputStream(new File(dir, safe))) { o.write(data); }
-                }
+                ContentValues v = new ContentValues();
+                v.put(MediaStore.Downloads.DISPLAY_NAME, safe);
+                v.put(MediaStore.Downloads.MIME_TYPE, mime);
+                v.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS);
+                Uri u = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);
+                try (OutputStream o = getContentResolver().openOutputStream(u)) { o.write(data); }
                 toast("Saved to Downloads: " + safe);
             } catch (Exception e) { toast("Could not save the file"); }
         }

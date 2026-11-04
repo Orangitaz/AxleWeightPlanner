@@ -22,11 +22,10 @@ const head = "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><me
 const tail = "<script>setInterval(function(){fetch('/ping').catch(function(){})},4000);fetch('/ping');</script></body></html>"
 
 func main() {
-	var last atomic.Int64
-	last.Store(time.Now().UnixNano())
+	var pings atomic.Int64
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ping", func(w http.ResponseWriter, r *http.Request) {
-		last.Store(time.Now().UnixNano())
+		pings.Add(1)
 		w.WriteHeader(204)
 	})
 	// Saved setups live in setups.json next to the program.
@@ -90,14 +89,17 @@ func main() {
 	url := "http://" + ln.Addr().String() + "/"
 	go http.Serve(ln, mux)
 	openApp(url)
-	// quit once the window has been closed (no heartbeat for 4 min; a minimized window is throttled by the browser)
-	grace := time.Now().Add(60 * time.Second)
+	// Quit once the window has been closed: no heartbeat for 4 minutes. This counts 2 second ticks instead of
+	// comparing clock times, so a laptop that slept for an hour does not make the program quit on wake-up.
+	time.Sleep(60 * time.Second)
+	seen, idle := pings.Load(), 0
 	for {
 		time.Sleep(2 * time.Second)
-		if time.Now().Before(grace) {
+		if n := pings.Load(); n != seen {
+			seen, idle = n, 0
 			continue
 		}
-		if time.Since(time.Unix(0, last.Load())) > 240*time.Second {
+		if idle++; idle > 120 {
 			return
 		}
 	}

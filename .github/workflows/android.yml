@@ -19,11 +19,11 @@ jobs:
         run: mkdir -p android/app/src/main/assets && cp index.html android/app/src/main/assets/index.html
       - name: Build
         working-directory: android
-        run: gradle --no-daemon assembleDebug
+        run: gradle --no-daemon assembleRelease
       - name: Name the file with its version
         run: |
           V=$(grep -oP "versionName '\K[^']+" android/app/build.gradle)
-          cp android/app/build/outputs/apk/debug/app-debug.apk "AxleWeightPlanner-$V.apk"
+          cp android/app/build/outputs/apk/release/app-release.apk "AxleWeightPlanner-$V.apk"
           echo "APK=AxleWeightPlanner-$V.apk" >> "$GITHUB_ENV"
           echo "VER=$V" >> "$GITHUB_ENV"
       - name: Remove older files from the release
