@@ -412,7 +412,8 @@ function convState(s, f) {
     tractor: Object.assign({}, s.tractor, { overall: f(s.tractor.overall), fuelX: f(s.tractor.fuelX) }),
     jeep: Object.assign({}, s.jeep, { kpToAxle: f(s.jeep.kpToAxle), coupling: f(s.jeep.coupling), overall: f(s.jeep.overall), slide: Object.assign({}, s.jeep.slide || {}, { min: f((s.jeep.slide || {}).min), max: f((s.jeep.slide || {}).max) }) }),
     trailer: Object.assign({}, s.trailer, { kpToAxle: f(s.trailer.kpToAxle), overall: f(s.trailer.overall), kpFront: f(s.trailer.kpFront), upperLen: f(s.trailer.upperLen), lowDeck: f(s.trailer.lowDeck), lowGoose: f(s.trailer.lowGoose), lowRear: f(s.trailer.lowRear), lowerLen: f(s.trailer.lowerLen), slide: Object.assign({}, s.trailer.slide, { min: f(s.trailer.slide.min), max: f(s.trailer.slide.max) }), cargo: s.trailer.cargo.map(c => Object.assign({}, c, { x: f(c.x), len: f(c.len) })) }),
-    limits: Object.assign({}, s.limits, { kpra: f(s.limits.kpra) })
+    limits: Object.assign({}, s.limits, { kpra: f(s.limits.kpra) }),
+    ref: s.ref && s.ref.jeep && s.ref.trailer ? Object.assign({}, s.ref, { jeep: Object.assign({}, s.ref.jeep, { kpToAxle: f(s.ref.jeep.kpToAxle), coupling: f(s.ref.jeep.coupling) }), trailer: Object.assign({}, s.ref.trailer, { kpToAxle: f(s.ref.trailer.kpToAxle) }) }) : s.ref
   });
 }
 const ftState = s => convState(s, toFt), inState = s => convState(s, toIn);
@@ -423,7 +424,13 @@ function snapGeom(s) {
 // steer and drive weights). To move the 5th wheel or slide axles we need each unit's own empty weight and CG, so
 // they are backed out here at the positions the weights were scaled at (s.ref), using the kingpin share of each unit.
 function resolve(s) {
-  const g = snapGeom(s); // empty weights stay as entered; only the load changes with positions
+  // The entered weights belong to the positions they were scaled at (s.ref). Sliding the 5th wheel or the trailer
+  // axles away from those moves weight between the axle groups, so the units are backed out at the scaled
+  // positions and then placed at the current ones. Anything not recorded yet falls back to the current value.
+  const cur = snapGeom(s), rf = s.ref, pick = (a, b) => (a === null || a === undefined || a === '') ? b : a;
+  const g = rf && rf.tractor && rf.jeep && rf.trailer && Array.isArray(rf.tractor.gaps) && rf.tractor.driveN === cur.tractor.driveN && rf.jeep.on === cur.jeep.on
+    ? { tractor: { driveN: cur.tractor.driveN, gaps: cur.tractor.gaps.map((v, i) => pick(rf.tractor.gaps[i], v)), fw: pick(rf.tractor.fw, cur.tractor.fw) }, jeep: { on: cur.jeep.on, kpToAxle: pick(rf.jeep.kpToAxle, cur.jeep.kpToAxle), coupling: pick(rf.jeep.coupling, cur.jeep.coupling) }, trailer: { kpToAxle: pick(rf.trailer.kpToAxle, cur.trailer.kpToAxle) } }
+    : cur;
   const f = Math.min(0.85, Math.max(0, (+s.trailer.kpPct || 0) / 100)), R0 = +s.trailer.tareR || 0;
   const tT = R0 / (1 - f), K0t = tT * f;
   const trailer = Object.assign({}, s.trailer, { tare: tT, tareCg: g.trailer.kpToAxle * (1 - f) });
@@ -994,7 +1001,7 @@ function renderSlide(r) {
   const legal = all.filter(c => c.ok), best = legal.length ? legal.reduce((a, b) => b.minM > a.minM ? b : a) : null;
   const rowLab = c => [rS.on ? 'axles ' + fmtL(c.y) : '', d.jOn ? 'jeep ' + fmtL(c.c) : ''].filter(Boolean).join(' · ');
   let h = `<h2>Legal slide window <span class="tag">${legal.length} of ${all.length} positions</span></h2>`;
-  h += `<p class="sub">${tS.on ? '5th wheel across, ' : ''}${rS.on || d.jOn ? 'trailer axles and jeep 5th wheel down.' : ''} Green means every group, the gross and the bridge check pass. Click a cell to set that position.</p>`;
+  h += `<p class="sub">${tS.on ? '5th wheel across, ' : ''}${rS.on || d.jOn ? 'trailer axles and jeep 5th wheel down.' : ''} Green means every group, the gross and the bridge check pass. Click a cell to set that position. Your empty weights are taken as scaled at the positions you typed in, and sliding from there moves weight between the groups.</p>`;
   h += `<div class="scroll"><table class="sg"><thead><tr><th>${rS.on || d.jOn ? 'in' : ''}</th>${d.xs.map(x => `<th>${tS.on ? (x > 0 ? '+' : '') + x : ''}</th>`).join('')}</tr></thead><tbody>`;
   d.rows.forEach(row => {
     h += `<tr><th>${rowLab(row[0])}</th>` + row.map(c => {
@@ -1161,6 +1168,10 @@ function printHead() {
 
 /* ---------- version ---------- */
 const CHANGES = [
+  ['1.5.4', 'Sliding now moves the empty weights', [
+    'Sliding the 5th wheel or the trailer axles with the legal slide window now moves the empty weight between steer, drive and trailer, not only the load. Before, the empty weights were treated as if they had been scaled at every position, so the window showed some positions as legal that were not (77 of 121 in the dry van example, now 62).',
+    'Your empty weights are taken as scaled at the positions you typed in. Typing a different position only changes that position. Clicking a cell in the window slides from it.'
+  ]],
   ['1.5.3', 'Typing distances', [
     'Distances now accept units glued to the number, such as 10ft 10in, 10ft10in, 10 ft 10 in and 130in. Plain 10 10, 10\'10" and 130 still work.'
   ]],
@@ -1226,7 +1237,7 @@ function renderChanges() {
 let CHANGES_OPEN = false;
 /* ---------- save the sheet as a PDF or an image ---------- */
 if (window.AndroidBridge && window.AndroidBridge.print) { const _p = window.print; window.print = () => { try { window.AndroidBridge.print(); } catch (e) { _p.call(window); } }; }
-const APP_VERSION = '1.5.3';
+const APP_VERSION = '1.5.4';
 async function saveFile(name, blob) {
   if (window.AndroidBridge && window.AndroidBridge.save) {
     try {
@@ -1737,7 +1748,14 @@ function onField(e) {
   if (v === undefined) { const bx = el.closest('.in'); if (bx) bx.classList.add('bad'); return; }
   if (path === 'trailer.type') { S.trailer = trailerFrom(v); S.ref = snapGeom(S); renderAll(); return; }
   setP(path, v);
-  if (/^(tractor\.(steerCurb|driveCurb)|jeep\.tareR|trailer\.tareR|jeep\.on)$/.test(path)) S.ref = snapGeom(S);
+  if (/^(tractor\.(steerCurb|driveCurb|driveN)|jeep\.(tareR|on)|trailer\.tareR)$/.test(path)) S.ref = snapGeom(S);
+  else if (/^(tractor\.(fw|gaps\.\d+)|jeep\.(kpToAxle|coupling)|trailer\.kpToAxle)$/.test(path)) {
+    // typing a position says where the truck was scaled; only that one entry moves, the rest of the baseline stays
+    if (!S.ref) S.ref = snapGeom(S);
+    const q = path.split('.'); let from = S, to = S.ref;
+    for (let i = 0; i < q.length - 1; i++) { from = from[q[i]]; to = to && to[q[i]]; }
+    if (to) to[q[q.length - 1]] = from[q[q.length - 1]];
+  }
   if (/^(tractor\.(steerCurb|driveCurb)|jeep\.tareR|trailer\.tareR)$/.test(path)) S.est = false;
   if (el.dataset.struct) { renderAll(); } else { renderResults(); paintFt(); }
 }
